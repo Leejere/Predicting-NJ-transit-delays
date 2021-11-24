@@ -2,10 +2,110 @@
 title: "Final Project"
 author: "Jie Li"
 date: "11/24/2021"
-output: html_document
+output:
+  html_document: 
+    toc: yes
+    toc_float: yes
+    code_folding: hide
+    theme: paper
+  pdf_document: default
+---
+
+<style>
+p.caption {
+  font-size: 0.8em;
+  text-align: center;
+  font-weight: normal;
+}
+    caption {
+      color: grey;
+      font-size: 0.8em;
+    } 
+body{
+  font-size: 11pt;
+  font-family: Open Sans;
+}
+h1,h2,h3,h4,h5,h6{
+  font-family: Open Sans;
+}
+td{
+  font-size: 9pt;
+  font-family: Open Sans;
+}
+th{
+  font-size: 0.8em;
+  font-family: Open Sans;
+  color: grey;
+}
+</style>
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+
 ```
+
+```{r set_up, fig.keep='all', message=FALSE, warning=FALSE, results='hide'}
+crs = 'ESPG:26913'
+
+library(tidyverse)
+library(sf)
+library(lubridate)
+library(tigris)
+library(gganimate)
+library(riem)
+library(gridExtra)
+library(knitr)
+library(kableExtra)
+library(FNN)
+library(spdep)
+library(caret)
+library(ckanr)
+library(grid)
+library(gridExtra)
+library(knitr)
+library(kableExtra)
+library(tidycensus)
+library(scales)
+library(stargazer)
+library(sjPlot)
+library(sjmisc)
+library(sjlabelled)
+
+etwd("C:/Users/leeje/OneDrive/G-1/CPLN-592/Codes/Assignment 5")
+root.dir = "https://raw.githubusercontent.com/urbanSpatial/Public-Policy-Analytics-Landing/master/DATA/"
+source("https://raw.githubusercontent.com/urbanSpatial/Public-Policy-Analytics-Landing/master/functions.r")
+
+windowsFonts(font = windowsFont('Open Sans'))
+plotTheme2 <- function(base_size = 9, title_size = 10){
+  theme(
+    text = element_text(family = 'font', color = "black"),
+    plot.title = element_text(family = 'font',
+                              size = title_size, colour = "black", hjust = 0.5), 
+    plot.subtitle = element_text(family = 'font', face = 'italic',
+                                 size = base_size, colour = "black", hjust = 0.5),
+    plot.caption = element_text(family = 'font', hjust=0),
+    axis.ticks = element_blank(),
+    panel.background = element_blank(),
+    panel.grid.major = element_line("grey80", size = 0.01),
+    panel.grid.minor = element_blank(),
+    panel.border = element_rect(colour = "black", fill=NA, size=.5),
+    strip.background = element_blank(),
+    strip.text = element_text(family = 'font', size=9),
+    axis.title = element_text(family = 'font', size=9),
+    axis.text = element_text(family = 'font', size=7),
+    axis.text.y = element_text(family = 'font', size=7),
+    plot.background = element_blank(),
+    legend.background = element_blank(),
+    legend.title = element_text(family = 'font', colour = "black", face = "italic", size = 9),
+    legend.text = element_text(family = 'font', colour = "black", face = "italic", size = 7),
+    strip.text.x = element_text(family = 'font', size = 9),
+    legend.key.size = unit(.5, 'line')
+  )
+}
+
+color2 = '#FC6D5C'
+color3 = '#31649D'
+```
+
 
