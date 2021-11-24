@@ -72,6 +72,7 @@ library(sjPlot)
 library(sjmisc)
 library(sjlabelled)
 
+etwd("C:/Users/leeje/OneDrive/G-1/CPLN-592/Codes/Assignment 5")
 root.dir = "https://raw.githubusercontent.com/urbanSpatial/Public-Policy-Analytics-Landing/master/DATA/"
 source("https://raw.githubusercontent.com/urbanSpatial/Public-Policy-Analytics-Landing/master/functions.r")
 
@@ -139,20 +140,16 @@ palette1_main <- "#F2727F"
 palette1_assist <- '#F9B294'
 ```
 
+```{r njStation, message=FALSE, warning=FALSE, results='hide', fig.cap = 'Figure 3.3', fig.height = 4, fig.align = 'center'}
 
-```{r}
-njCensusCounties <-
-  tigris::counties(state = "34")%>%
-  st_transform(crs)%>%
-  dplyr::select(GEOID,NAMELSAD,geometry)
+njStations = st_read('https://opendata.arcgis.com/datasets/4809dada94c542e0beff00600ee930f6_0.geojson') %>%
+  st_transform(crs)
 
-njCensusTracts <- 
-  tigris::tracts(state = "34") %>%
-  st_transform(crs)%>%
-  dplyr::select(GEOID,NAMELSAD,geometry)
 
-grid.arrange(ncol=2,
-ggplot(njCensusCounties)+geom_sf(),
-ggplot(njCensusTracts)+geom_sf())
 ```
 
+```{r trains, message=FALSE, warning=FALSE, results='hide', fig.cap = 'Figure 3.3', fig.height = 4, fig.align = 'center'}
+
+transSep = read.csv('2019_09.csv')
+
+```
