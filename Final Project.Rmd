@@ -139,5 +139,3 @@ palette2 <- c("#f9b294","#f2727f")
 palette1_main <- "#F2727F"
 palette1_assist <- '#F9B294'
 ```
-
-
