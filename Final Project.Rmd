@@ -155,3 +155,4 @@ grid.arrange(ncol=2,
 ggplot(njCensusCounties)+geom_sf(),
 ggplot(njCensusTracts)+geom_sf())
 ```
+
