@@ -46,7 +46,7 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 ```{r set_up, fig.keep='all', message=FALSE, warning=FALSE, results='hide'}
-crs = 'ESPG:26913'
+crs = 'EPSG:26913'
 
 library(tidyverse)
 library(sf)
@@ -72,7 +72,6 @@ library(sjPlot)
 library(sjmisc)
 library(sjlabelled)
 
-etwd("C:/Users/leeje/OneDrive/G-1/CPLN-592/Codes/Assignment 5")
 root.dir = "https://raw.githubusercontent.com/urbanSpatial/Public-Policy-Analytics-Landing/master/DATA/"
 source("https://raw.githubusercontent.com/urbanSpatial/Public-Policy-Analytics-Landing/master/functions.r")
 
@@ -139,3 +138,21 @@ palette2 <- c("#f9b294","#f2727f")
 palette1_main <- "#F2727F"
 palette1_assist <- '#F9B294'
 ```
+
+
+```{r}
+njCensusCounties <-
+  tigris::counties(state = "34")%>%
+  st_transform(crs)%>%
+  dplyr::select(GEOID,NAMELSAD,geometry)
+
+njCensusTracts <- 
+  tigris::tracts(state = "34") %>%
+  st_transform(crs)%>%
+  dplyr::select(GEOID,NAMELSAD,geometry)
+
+grid.arrange(ncol=2,
+ggplot(njCensusCounties)+geom_sf(),
+ggplot(njCensusTracts)+geom_sf())
+```
+
