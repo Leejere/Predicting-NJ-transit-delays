@@ -156,12 +156,10 @@ ggplot(njCensusCounties)+geom_sf(),
 ggplot(njCensusTracts)+geom_sf())
 ```
 
-<<<<<<< Updated upstream
-=======
 ```{r trains, message=FALSE, warning=FALSE, results='hide', fig.cap = 'Figure 3.3', fig.height = 4, fig.align = 'center'}
 
 trainsSep = read.csv('2019_09.csv')
 trainsOct = read.csv('2019_10.csv')
 
 ```
->>>>>>> Stashed changes
+
