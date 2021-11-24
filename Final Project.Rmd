@@ -71,6 +71,7 @@ library(stargazer)
 library(sjPlot)
 library(sjmisc)
 library(sjlabelled)
+library(mapview)
 
 root.dir = "https://raw.githubusercontent.com/urbanSpatial/Public-Policy-Analytics-Landing/master/DATA/"
 source("https://raw.githubusercontent.com/urbanSpatial/Public-Policy-Analytics-Landing/master/functions.r")
@@ -141,6 +142,25 @@ palette1_assist <- '#F9B294'
 
 
 ```{r}
+
+njStations = st_read('https://opendata.arcgis.com/datasets/4809dada94c542e0beff00600ee930f6_0.geojson') %>%
+  st_transform(crs) %>%
+  dplyr::select(station = STATION_ID, geometry) %>%
+  mutate(station = tolower(station)) %>%
+  mutate(station = 
+           case_when(
+             substr(station, nchar(station) - 15, nchar(station)) == ' railway station'~
+               substr(station, 1, nchar(station) - 16),
+             substr(station, nchar(station) - 12, nchar(station)) == ' rail station'~
+               substr(station, 1, nchar(station) - 13),
+             substr(station, nchar(station) - 7, nchar(station)) == ' station' ~
+               substr(station, 1, nchar(station) - 8),
+             substr(station, nchar(station) - 8, nchar(station)) == ' terminal' ~
+               substr(station, 1, nchar(station) - 9),
+             TRUE ~ station
+           )) %>%
+  mutate(joined = 1)
+
 njCensusCounties <-
   tigris::counties(state = "34")%>%
   st_transform(crs)%>%
@@ -157,9 +177,73 @@ ggplot(njCensusTracts)+geom_sf())
 ```
 
 ```{r trains, message=FALSE, warning=FALSE, results='hide', fig.cap = 'Figure 3.3', fig.height = 4, fig.align = 'center'}
+trainsSep = read.csv('2019_09.csv') %>%
+  filter(., type == 'NJ Transit' & status == 'departed' &
+           line != 'Princeton Shuttle') %>%
+  mutate(date = ymd(date),
+         scheduled_time = ymd_hms(scheduled_time),
+         actual_time = ymd_hms(actual_time)) %>%
+  mutate(legend = 'train')
 
-trainsSep = read.csv('2019_09.csv')
-trainsOct = read.csv('2019_10.csv')
 
+trainsOct = read.csv('2019_10.csv') %>%
+  filter(., type == 'NJ Transit' & status == 'departed' &
+           line != 'Princeton Shuttle') %>%
+  mutate(date = ymd(date),
+         scheduled_time = ymd_hms(scheduled_time),
+         actual_time = ymd_hms(actual_time)) %>%
+  arrange(stop_sequence) %>%
+  mutate(legend = 'test')
+
+trains = rbind(trainsSep, trainsOct) %>%
+  mutate(to = tolower(to),
+         from = tolower(from)) %>%
+  mutate(to = 
+           case_when(
+             substr(to, nchar(to) - 15, nchar(to)) == ' railway station'~
+               substr(to, 1, nchar(to) - 16),
+             substr(to, nchar(to) - 12, nchar(to)) == ' rail station'~
+               substr(to, 1, nchar(to) - 13),
+             substr(to, nchar(to) - 7, nchar(to)) == ' station' ~
+               substr(to, 1, nchar(to) - 8),
+             substr(to, nchar(to) - 8, nchar(to)) == ' terminal' ~
+               substr(to, 1, nchar(to) - 9),
+             TRUE ~ to
+           ),
+         from = 
+           case_when(
+             substr(from, nchar(from) - 15, nchar(from)) == ' railway station'~
+               substr(from, 1, nchar(from) - 16),
+             substr(from, nchar(from) - 12, nchar(from)) == ' rail station'~
+               substr(from, 1, nchar(from) - 13),
+             substr(from, nchar(from) - 7, nchar(from)) == ' station' ~
+               substr(from, 1, nchar(from) - 8),
+             substr(from, nchar(from) - 8, nchar(from)) == ' terminal' ~
+               substr(from, 1, nchar(from) - 9),TRUE ~ from
+           )) %>%
+  left_join(njStations, by = c('to' = 'station')) %>%
+  st_sf()
+
+trains %>%
+  filter(., is.na(joined)) %>%
+  as.data.frame() %>%
+  group_by(to) %>%
+  summarize(to = first(to))
+```
+
+
+```{r , message=FALSE, warning=FALSE, results='hide', fig.cap = 'Figure 3.3', fig.height = 4, fig.align = 'center'}
+
+trainsSep %>%
+  group_by(date, train_id) %>%
+  filter(date == '2019-09-01') %>%
+  filter(stop_sequence == max(stop_sequence) |
+           stop_sequence == min(stop_sequence),) %>%
+  summarise(stationNumber = max(stop_sequence),
+            startTime = min(scheduled_time),
+            endTime = max(scheduled_time),
+            timeDiff = difftime(endTime, startTime, units = 'mins')) %>%
+  arrange(startTime)
+  
 ```
 
