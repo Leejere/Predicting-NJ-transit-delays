@@ -106,6 +106,11 @@ plotTheme2 <- function(base_size = 9, title_size = 10){
 
 color2 = '#FC6D5C'
 color3 = '#31649D'
+palette5 <- c("#f9b294","#f2727f","#c06c86","#6d5c7e","#315d7f")
+palette4 <- c("#f9b294","#f2727f","#c06c86","#6d5c7e")
+palette2 <- c("#f9b294","#f2727f")
+palette1_main <- "#F2727F"
+palette1_assist <- '#F9B294'
 ```
 
 
