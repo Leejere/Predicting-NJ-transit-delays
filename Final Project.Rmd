@@ -45,7 +45,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ```
 
-```{r set_up, fig.keep='all', message=FALSE, warning=FALSE, results='hide'}
+```{r set_up}
 crs = 'EPSG:26913'
 
 library(stringr)
@@ -141,7 +141,35 @@ palette1_main <- "#F2727F"
 palette1_assist <- '#F9B294'
 ```
 
-```{r nj_stations_and_geographies}
+```{r geographies}
+njCounties =
+  tigris::counties(state = "34")%>%
+  st_transform(crs)%>%
+  dplyr::select(GEOID,NAMELSAD,geometry)
+nyCounties = 
+  tigris::counties(state = "NY")%>%
+  st_transform(crs)%>%
+  dplyr::select(GEOID,NAMELSAD,geometry)
+paCounties = 
+  tigris::counties(state = "PA")%>%
+  st_transform(crs)%>%
+  dplyr::select(GEOID,NAMELSAD,geometry)
+
+counties = rbind(njCounties, nyCounties, paCounties)
+
+njTracts <- 
+  tigris::tracts(state = "34") %>%
+  st_transform(crs)%>%
+  dplyr::select(GEOID,NAMELSAD,geometry)
+
+mapview(counties) + mapview(njStations)
+# 
+# grid.arrange(ncol=2,
+# ggplot(njCensusCounties)+geom_sf(),
+# ggplot(njCensusTracts)+geom_sf())
+```
+
+```{r nj_stations}
 
 njStations = st_read('https://opendata.arcgis.com/datasets/4809dada94c542e0beff00600ee930f6_0.geojson') %>%
   st_transform(crs) %>%
@@ -190,22 +218,12 @@ njStations[114, 1] = 'glen rock boro hall'
 njStations[116, 1] = 'broadway fair lawn'
 njStations[132, 1] = 'essex street'
 
-njCensusCounties <-
-  tigris::counties(state = "34")%>%
-  st_transform(crs)%>%
-  dplyr::select(GEOID,NAMELSAD,geometry)
-
-njCensusTracts <- 
-  tigris::tracts(state = "34") %>%
-  st_transform(crs)%>%
-  dplyr::select(GEOID,NAMELSAD,geometry)
-# 
-# grid.arrange(ncol=2,
-# ggplot(njCensusCounties)+geom_sf(),
-# ggplot(njCensusTracts)+geom_sf())
+njStations = njStations %>%
+  st_join(counties %>% dplyr::select(GEOID, geometry),
+          join = st_within)
 ```
 
-```{r read_trains_data, message=FALSE, warning=FALSE, results='hide', fig.cap = 'Figure 3.3', fig.height = 4, fig.align = 'center'}
+```{r read_trains_data}
 trainsSep = read.csv('2019_09.csv') %>%
   filter(., type == 'NJ Transit' & status == 'departed' &
            line != 'Princeton Shuttle') %>%
@@ -286,13 +304,13 @@ njStations$weatherStationIndex =
 # Determine which weather station for which transit station
 njStations = njStations %>%
   left_join(st_drop_geometry(weatherStations) %>%
-              dplyr::select(weatherStationName = name, weatherStationIndex), 
+              dplyr::select(weatherStationID = id, weatherStationIndex), 
             by = 'weatherStationIndex')
 ```
 
 ```{r join_station_info}
 
-trains = read.csv('trains.csv')
+trains = read.csv('trains.csv') %>% dplyr::select(-X)
 
 trains$lagDelay = trains$lagDelay %>%
   replace(is.na(.), 0)
@@ -348,8 +366,51 @@ trains3 =
   group_by(train_id, to) %>%
   arrange(scheduled_time) %>%
   mutate(lagDelayDay = lag(delay_minutes, 1)) %>%
-  ungroup()
+  ungroup() %>%
+  mutate(actualTime = ymd_hms(actual_time),
+         scheduledTime = ymd_hms(scheduled_time),
+         date = ymd(date)) %>%
+  rename(delay = delay_minutes, train = train_id) %>%
+  dplyr::select(-actual_time, -scheduled_time,
+                -to_id, -from_id, -type, -status)
 ```
 
+```{r weather_information}
+
+weatherStationList = unique(trains3$weatherStationID)
+
+weather = data.frame()
+for(i in weatherStationList){
+  weatherSeg = riem_measures(station = i, 
+                          date_start = '2019-09-01',
+                          date_end = '2019-10-31') %>%
+    mutate_if(is.character, list(~replace(as.character(.), is.na(.), "0"))) %>%
+    replace(is.na(.), 0) %>%
+    mutate(hour = ymd_h(substr(valid, 1, 13))) %>%
+    mutate(week = week(hour),
+           dayOfWeek = wday(hour, label = T)) %>%
+    group_by(hour) %>%
+    summarize(temp = max(tmpf),
+              precip = sum(p01i),
+              windSpeed = max(sknt)) %>%
+    mutate(temp = ifelse(temp == 0, 42, temp)) %>%
+    mutate(precip = ifelse(precip > 0.2, 'Rain/Snow', 'None')) %>%
+    mutate(weatherStationID = i)
+  weather = rbind(weather, weatherSeg)
+}
+
+```
+
+```{r join_weather}
+
+# Floor time
+trains3$timeHour = floor_date(trains3$scheduledTime, unit = 'hour')
+
+trains4 = trains3 %>%
+  left_join(weather,
+            by = c('weatherStationID' = 'weatherStationID',
+                   'timeHour' = 'hour'))
+
+```
 
 
