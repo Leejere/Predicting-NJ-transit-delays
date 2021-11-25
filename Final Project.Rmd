@@ -141,8 +141,7 @@ palette1_main <- "#F2727F"
 palette1_assist <- '#F9B294'
 ```
 
-
-```{r}
+```{r nj_stations_and_geographies}
 
 njStations = st_read('https://opendata.arcgis.com/datasets/4809dada94c542e0beff00600ee930f6_0.geojson') %>%
   st_transform(crs) %>%
@@ -151,8 +150,8 @@ njStations = st_read('https://opendata.arcgis.com/datasets/4809dada94c542e0beff0
   mutate(station = tolower(station)) %>%
   mutate(station = 
            case_when(
-             str_detect(station, '-') ~
-               substr(station, 1, str_locate(station, '-')[[1]] - 1),
+             # str_detect(station, '-') ~
+             #   substr(station, 1, str_locate(station, '-')[[1]] - 1),
              substr(station, nchar(station) - 15, nchar(station)) == ' railway station'~
                substr(station, 1, nchar(station) - 16),
              substr(station, nchar(station) - 12, nchar(station)) == ' rail station'~
@@ -165,6 +164,32 @@ njStations = st_read('https://opendata.arcgis.com/datasets/4809dada94c542e0beff0
            )) %>%
   mutate(joined = 1)
 
+# Further modifying station names
+njStations[12, 1] = 'middletown nj'
+njStations[149, 1] = 'middletown ny'
+njStations[131, 1] = 'anderson street'
+njStations[99, 1] = 'atlantic city rail'
+njStations[87, 1] = 'bay street'
+njStations[134, 1] = 'wood ridge'
+njStations[90, 1] = 'watsessing avenue'
+njStations[133, 1] = 'teterboro'
+njStations[159, 1] = 'secaucus upper lvl'
+njStations[166, 1] = 'secaucus lower lvl'
+njStations[102, 1] = 'ramsey main st'
+njStations[156, 1] = 'ramsey route 17'
+njStations[102, 1] = 'ramsey main st'
+njStations[115, 1] = 'radburn fair lawn'
+njStations[140, 1] = 'princeton junction'
+njStations[92, 1] = 'philadelphia'
+njStations[165, 1] = 'pennsauken'
+njStations[80, 1] = 'mountain view'
+njStations[163, 1] = 'mount arlington'
+njStations[158, 1] = 'montclair state u'
+njStations[107, 1] = 'glen rock main line'
+njStations[114, 1] = 'glen rock boro hall'
+njStations[116, 1] = 'broadway fair lawn'
+njStations[132, 1] = 'essex street'
+
 njCensusCounties <-
   tigris::counties(state = "34")%>%
   st_transform(crs)%>%
@@ -174,13 +199,13 @@ njCensusTracts <-
   tigris::tracts(state = "34") %>%
   st_transform(crs)%>%
   dplyr::select(GEOID,NAMELSAD,geometry)
-
-grid.arrange(ncol=2,
-ggplot(njCensusCounties)+geom_sf(),
-ggplot(njCensusTracts)+geom_sf())
+# 
+# grid.arrange(ncol=2,
+# ggplot(njCensusCounties)+geom_sf(),
+# ggplot(njCensusTracts)+geom_sf())
 ```
 
-```{r trains, message=FALSE, warning=FALSE, results='hide', fig.cap = 'Figure 3.3', fig.height = 4, fig.align = 'center'}
+```{r read_trains_data, message=FALSE, warning=FALSE, results='hide', fig.cap = 'Figure 3.3', fig.height = 4, fig.align = 'center'}
 trainsSep = read.csv('2019_09.csv') %>%
   filter(., type == 'NJ Transit' & status == 'departed' &
            line != 'Princeton Shuttle') %>%
@@ -199,10 +224,81 @@ trainsOct = read.csv('2019_10.csv') %>%
   arrange(stop_sequence) %>%
   mutate(legend = 'test')
 
+# Bind the two-month data
 trains = rbind(trainsSep, trainsOct) %>%
   # Trying to standardize station names
   mutate(to = tolower(to),
-         from = tolower(from)) %>%
+         from = tolower(from)) 
+```
+
+```{r delay_lag_2_hours, eval = FALSE}
+# Delays on this line two hours prior
+
+# Add a field: time of prediction
+trains = trains %>%
+  mutate(timeOfPrediction = scheduled_time - hours(2))
+
+timeLagBase = 
+  trains %>%
+  dplyr::select(date, line, actual_time, delay_minutes)
+
+findLagDelay = function(timeOfPrediction, line, date){
+  narrowDown = 
+    timeLagBase[timeLagBase$line == line &
+                  timeLagBase$date == date &
+                  difftime(timeOfPrediction,
+                           timeLagBase$actual_time,
+                           units = 'secs') > 0,] %>%
+    arrange(desc(actual_time))
+  return(narrowDown[1, 4])
+}
+
+# Add lag delay data
+for(i in 1:nrow(trains)){
+  date = trains[i, 'date']
+  line = trains[i, 'line']
+  timeOfPrediction = trains[i, 'timeOfPrediction']
+  lagDelay = findLagDelay(timeOfPrediction, line, date)
+  trains[i, 'lagDelay'] = lagDelay
+  if(i %% 1000 == 0){
+    print(i)
+  }
+}
+write.csv(trains, 'trains.csv')
+```
+
+```{r weather_stations}
+# Weather
+network = riem_networks()
+weatherStations = riem_stations(network = 'NJ_ASOS') %>%
+  st_as_sf(coords = c('lon', 'lat'), crs = 4326, agr = 'constant') %>%
+  st_transform(crs)
+weatherStations$weatherStationIndex = row.names(weatherStations) %>% as.numeric()
+
+mapview(weatherStations) + mapview(njStations)
+mapview(njStations)
+
+njStations$weatherStationIndex =
+  get.knnx(
+  st_coordinates(weatherStations), 
+  st_coordinates(njStations), 1)$nn.index
+
+# Determine which weather station for which transit station
+njStations = njStations %>%
+  left_join(st_drop_geometry(weatherStations) %>%
+              dplyr::select(weatherStationName = name, weatherStationIndex), 
+            by = 'weatherStationIndex')
+```
+
+```{r join_station_info}
+
+trains = read.csv('trains.csv')
+
+trains$lagDelay = trains$lagDelay %>%
+  replace(is.na(.), 0)
+
+trains = trains %>%
+  filter(., to != 'secaucus concourse') %>%
   mutate(to = 
            case_when(
              str_detect(to, '-') ~
@@ -231,64 +327,29 @@ trains = rbind(trainsSep, trainsOct) %>%
                substr(from, 1, nchar(from) - 9),TRUE ~ from
            )) %>%
   left_join(njStations, by = c('to' = 'station')) %>%
-  st_sf()
+  st_sf() %>%
+  dplyr::select(-joined, -weatherStationIndex)
 
-# trains %>%
-#   filter(., is.na(joined)) %>%
-#   as.data.frame() %>%
-#   group_by(to) %>%
-#   summarize(to = first(to))
 ```
 
+```{r time_fixed_effects}
 
-```{r , message=FALSE, warning=FALSE, results='hide', fig.cap = 'Figure 3.3', fig.height = 4, fig.align = 'center'}
-
-# trains %>%
-#   group_by(date, train_id) %>%
-#   filter(date == '2019-09-01') %>%
-#   filter(stop_sequence == max(stop_sequence) |
-#            stop_sequence == min(stop_sequence),) %>%
-#   summarise(stationNumber = max(stop_sequence),
-#             startTime = min(scheduled_time),
-#             endTime = max(scheduled_time),
-#             timeDiff = difftime(endTime, startTime, units = 'mins')) %>%
-#   arrange(startTime)
-  
+# Add time fixed effect
+trains2 = trains %>%
+  mutate(hour = hour(scheduled_time),
+         dayOfWeek = wday(scheduled_time),
+         week = week(scheduled_time))
 ```
-```{r}
-# Delays on this line two hours prior
 
-# Add a field: time of prediction
-trains = trains %>%
-  mutate(timeOfPrediction = scheduled_time - hours(2))
-
-timeLagBase = 
-  trains %>%
-  dplyr::select(date, line, actual_time, delay_minutes)
-
-findLagDelay = function(timeOfPrediction, line, date){
-  narrowDown = 
-    timeLagBase[timeLagBase$line == line &
-                  timeLagBase$date == date &
-                  difftime(timeOfPrediction,
-                           timeLagBase$actual_time,
-                           units = 'secs') > 0,] %>%
-    arrange(desc(actual_time))
-  return(narrowDown[1, 4])
-}
-
-for(i in 1:nrow(trains)){
-  date = trains[i, 'date']
-  line = trains[i, 'line']
-  timeOfPrediction = trains[i, 'timeOfPrediction']
-  lagDelay = findLagDelay(timeOfPrediction, line, date)
-  trains[i, 'lagDelay'] = lagDelay
-  if(i %% 1000 == 0){
-    print(i)
-  }
-}
-
-write.csv(trains, 'trains.csv')
+```{r lag_one_day}
+# Lag one day
+trains3 = 
+  trains2 %>%
+  group_by(train_id, to) %>%
+  arrange(scheduled_time) %>%
+  mutate(lagDelayDay = lag(delay_minutes, 1)) %>%
+  ungroup()
 ```
+
 
 
