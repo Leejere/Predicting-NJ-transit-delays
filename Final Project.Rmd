@@ -48,6 +48,7 @@ knitr::opts_chunk$set(echo = TRUE)
 ```{r set_up, fig.keep='all', message=FALSE, warning=FALSE, results='hide'}
 crs = 'EPSG:26913'
 
+library(stringr)
 library(tidyverse)
 library(sf)
 library(lubridate)
@@ -146,9 +147,12 @@ palette1_assist <- '#F9B294'
 njStations = st_read('https://opendata.arcgis.com/datasets/4809dada94c542e0beff00600ee930f6_0.geojson') %>%
   st_transform(crs) %>%
   dplyr::select(station = STATION_ID, geometry) %>%
+  # Trying to standardize the station names...
   mutate(station = tolower(station)) %>%
   mutate(station = 
            case_when(
+             str_detect(station, '-') ~
+               substr(station, 1, str_locate(station, '-')[[1]] - 1),
              substr(station, nchar(station) - 15, nchar(station)) == ' railway station'~
                substr(station, 1, nchar(station) - 16),
              substr(station, nchar(station) - 12, nchar(station)) == ' rail station'~
@@ -196,10 +200,13 @@ trainsOct = read.csv('2019_10.csv') %>%
   mutate(legend = 'test')
 
 trains = rbind(trainsSep, trainsOct) %>%
+  # Trying to standardize station names
   mutate(to = tolower(to),
          from = tolower(from)) %>%
   mutate(to = 
            case_when(
+             str_detect(to, '-') ~
+               substr(to, 1, str_locate(to, '-')[[1]] - 1),
              substr(to, nchar(to) - 15, nchar(to)) == ' railway station'~
                substr(to, 1, nchar(to) - 16),
              substr(to, nchar(to) - 12, nchar(to)) == ' rail station'~
@@ -212,6 +219,8 @@ trains = rbind(trainsSep, trainsOct) %>%
            ),
          from = 
            case_when(
+             str_detect(from, '-') ~
+               substr(from, 1, str_locate(from, '-')[[1]] - 1),
              substr(from, nchar(from) - 15, nchar(from)) == ' railway station'~
                substr(from, 1, nchar(from) - 16),
              substr(from, nchar(from) - 12, nchar(from)) == ' rail station'~
@@ -224,26 +233,62 @@ trains = rbind(trainsSep, trainsOct) %>%
   left_join(njStations, by = c('to' = 'station')) %>%
   st_sf()
 
-trains %>%
-  filter(., is.na(joined)) %>%
-  as.data.frame() %>%
-  group_by(to) %>%
-  summarize(to = first(to))
+# trains %>%
+#   filter(., is.na(joined)) %>%
+#   as.data.frame() %>%
+#   group_by(to) %>%
+#   summarize(to = first(to))
 ```
 
 
 ```{r , message=FALSE, warning=FALSE, results='hide', fig.cap = 'Figure 3.3', fig.height = 4, fig.align = 'center'}
 
-trainsSep %>%
-  group_by(date, train_id) %>%
-  filter(date == '2019-09-01') %>%
-  filter(stop_sequence == max(stop_sequence) |
-           stop_sequence == min(stop_sequence),) %>%
-  summarise(stationNumber = max(stop_sequence),
-            startTime = min(scheduled_time),
-            endTime = max(scheduled_time),
-            timeDiff = difftime(endTime, startTime, units = 'mins')) %>%
-  arrange(startTime)
+# trains %>%
+#   group_by(date, train_id) %>%
+#   filter(date == '2019-09-01') %>%
+#   filter(stop_sequence == max(stop_sequence) |
+#            stop_sequence == min(stop_sequence),) %>%
+#   summarise(stationNumber = max(stop_sequence),
+#             startTime = min(scheduled_time),
+#             endTime = max(scheduled_time),
+#             timeDiff = difftime(endTime, startTime, units = 'mins')) %>%
+#   arrange(startTime)
   
 ```
+```{r}
+# Delays on this line two hours prior
+
+# Add a field: time of prediction
+trains = trains %>%
+  mutate(timeOfPrediction = scheduled_time - hours(2))
+
+timeLagBase = 
+  trains %>%
+  dplyr::select(date, line, actual_time, delay_minutes)
+
+findLagDelay = function(timeOfPrediction, line, date){
+  narrowDown = 
+    timeLagBase[timeLagBase$line == line &
+                  timeLagBase$date == date &
+                  difftime(timeOfPrediction,
+                           timeLagBase$actual_time,
+                           units = 'secs') > 0,] %>%
+    arrange(desc(actual_time))
+  return(narrowDown[1, 4])
+}
+
+for(i in 1:nrow(trains)){
+  date = trains[i, 'date']
+  line = trains[i, 'line']
+  timeOfPrediction = trains[i, 'timeOfPrediction']
+  lagDelay = findLagDelay(timeOfPrediction, line, date)
+  trains[i, 'lagDelay'] = lagDelay
+  if(i %% 1000 == 0){
+    print(i)
+  }
+}
+
+write.csv(trains, 'trains.csv')
+```
+
 
