@@ -230,7 +230,7 @@ trainsSep = read.csv('2019_09.csv') %>%
   mutate(date = ymd(date),
          scheduled_time = ymd_hms(scheduled_time),
          actual_time = ymd_hms(actual_time)) %>%
-  mutate(legend = 'train')
+  dplyr::select(-status,-type)
 
 
 trainsOct = read.csv('2019_10.csv') %>%
@@ -240,7 +240,7 @@ trainsOct = read.csv('2019_10.csv') %>%
          scheduled_time = ymd_hms(scheduled_time),
          actual_time = ymd_hms(actual_time)) %>%
   arrange(stop_sequence) %>%
-  mutate(legend = 'test')
+  dplyr::select(-status,-type)
 
 # Bind the two-month data
 trains = rbind(trainsSep, trainsOct) %>%
@@ -248,6 +248,104 @@ trains = rbind(trainsSep, trainsOct) %>%
   mutate(to = tolower(to),
          from = tolower(from)) 
 ```
+
+```{r illustrate trainID and express line, eval=FALSE}
+## A trainID for a whole trip
+trainIDforWholeTrip = trains%>%
+  filter(train_id==7824,date=="2019-10-06")%>%
+  arrange(date,train_id)%>%
+  dplyr::select(date,train_id,stop_sequence,from,to,line)
+
+kable(trainIDforWholeTrip,align = 'c',caption = '<center>Table.A trainID for a whole trip')%>%
+  kable_classic(full_width = T)%>%
+  kable_styling(position = "center",font_size = 12)%>%
+  column_spec(2, background = palette1_assist)%>%
+  column_spec(3, background = palette1_main)
+
+## Different TrainIDs within the same day & Express or normal lines
+difTrainIDs = trains%>%
+  filter(line=="Northeast Corrdr",date=="2019-10-06",stop_sequence=="2")%>%
+  arrange(date,train_id)%>%
+  dplyr::select(scheduled_time,train_id,from,to,line)
+difTrainIDs = difTrainIDs[1:5,]
+
+kable(difTrainIDs,align = 'c',caption = '<center>Table.Different TrainIDs within the same day & Express or normal lines')%>%
+  kable_classic(full_width = T)%>%
+  kable_styling(position = "center",font_size = 12)%>%
+  column_spec(2, background = palette1_assist)%>%
+  row_spec(2, background = palette1_main)%>%
+  row_spec(3, background = palette1_main)
+
+## A TrainID is allocated for the specific time slot train everyday or more
+TrainIDforDifDay = trains%>%
+  filter(line=="Northeast Corrdr",train_id==7824,stop_sequence=="2")%>%
+  arrange(date,to)%>%
+  dplyr::select(scheduled_time,train_id,from,to,line)
+TrainIDforDifDay = TrainIDforDifDay[1:5,]
+
+kable(TrainIDforDifDay,align = 'c',caption = '<center>Table.A TrainID is allocated for the specific time slot everyday')%>%
+  kable_classic(full_width = T)%>%
+  kable_styling(position = "center",font_size = 12)%>%
+  column_spec(2, background = palette1_assist)%>%
+  column_spec(1,background = palette1_main)
+```
+
+```{r illustrate trainID and express line, echo=FALSE}
+kable(trainIDforWholeTrip,align = 'c',caption = '<center>Table.A trainID for a whole trip')%>%
+  kable_classic(full_width = T)%>%
+  kable_styling(position = "center",font_size = 12)%>%
+  column_spec(2, background = palette1_assist)%>%
+  column_spec(3, background = palette1_main)
+```
+
+```{r illustrate trainID and express line, echo=FALSE}
+kable(difTrainIDs,align = 'c',caption = '<center>Table.Different TrainIDs within the same day & Express or normal lines')%>%
+  kable_classic(full_width = T)%>%
+  kable_styling(position = "center",font_size = 12)%>%
+  column_spec(2, background = palette1_assist)%>%
+  row_spec(2, background = palette1_main)%>%
+  row_spec(3, background = palette1_main)
+```
+
+```{r illustrate trainID and express line, echo=FALSE}
+kable(TrainIDforDifDay,align = 'c',caption = '<center>Table.A TrainID is allocated for the specific time slot everyday')%>%
+  kable_classic(full_width = T)%>%
+  kable_styling(position = "center",font_size = 12)%>%
+  column_spec(2, background = palette1_assist)%>%
+  column_spec(1,background = palette1_main)
+```
+
+```{r distinguish sublines, eval = FALSE}
+# Distinguish Express and normal lines
+
+trains = trains%>%
+  filter(from != to)%>%
+  filter(from !="secaucus concourse" & to!="secaucus upper lvl")%>%
+  filter(from !="east orange" & to!="brick church")%>%
+  filter(from !="new york penn station" & to!="maplewood")
+
+lineList = unique(trains$line)
+for (k in lineList) {
+  LineTool = trains%>%
+    filter(line==k,stop_sequence=="2")%>%
+    arrange(date,train_id)%>%
+    group_by(from,to,train_id)%>%
+    summarise()
+  listFrom = unique(LineTool$from)
+  listTo = unique(LineTool$to)
+  n = 1
+  for (i in listFrom){
+    for (j in listTo) {
+      EvLine = filter(LineTool,from==i & to==j)
+      listTrainID = unique(EvLine$train_id)
+      if (length(listTrainID>0)){
+        trains = trains%>%mutate(line = case_when(train_id %in% listTrainID ~ paste(line,n, sep = "_subline_"),TRUE ~ line))
+        print(c(n,i,j))
+        n = n+1}}}}
+
+unique(trains$line)
+```
+
 
 ```{r delay_lag_2_hours, eval = FALSE}
 # Delays on this line two hours prior
@@ -310,7 +408,7 @@ njStations = njStations %>%
 
 ```{r join_station_info}
 
-trains = read.csv('trains.csv') %>% dplyr::select(-X)
+trains = read.csv('trains.csv') %>% dplyr::select(-X,-status,-type)
 
 trains$lagDelay = trains$lagDelay %>%
   replace(is.na(.), 0)
@@ -352,11 +450,15 @@ trains = trains %>%
 
 ```{r time_fixed_effects}
 
-# Add time fixed effect
+# Add time fixed effect & Select weeks
 trains2 = trains %>%
   mutate(hour = hour(scheduled_time),
          dayOfWeek = wday(scheduled_time),
          week = week(scheduled_time))
+  # filter(week %in% c(36:43))%>%
+  # mutate(legend = case_when(
+  #   week %in% c(36:41) ~ "train",
+  #   TRUE ~ "test"))
 ```
 
 ```{r lag_one_day}
@@ -365,14 +467,18 @@ trains3 =
   trains2 %>%
   group_by(train_id, to) %>%
   arrange(scheduled_time) %>%
-  mutate(lagDelayDay = lag(delay_minutes, 1)) %>%
+  mutate(lagDelayDayPlus = lag(delay_minutes, 1)) %>%
   ungroup() %>%
   mutate(actualTime = ymd_hms(actual_time),
          scheduledTime = ymd_hms(scheduled_time),
          date = ymd(date)) %>%
   rename(delay = delay_minutes, train = train_id) %>%
   dplyr::select(-actual_time, -scheduled_time,
-                -to_id, -from_id, -type, -status)
+                -to_id, -from_id)%>%
+  filter(week %in% c(37:43))%>%
+  mutate(legend = case_when(
+    week %in% c(37:41) ~ "train",
+    TRUE ~ "test"))
 ```
 
 ```{r weather_information}
