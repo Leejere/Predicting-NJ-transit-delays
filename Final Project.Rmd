@@ -290,6 +290,7 @@ kable(TrainIDforDifDay,align = 'c',caption = '<center>Table.A TrainID is allocat
   column_spec(1,background = palette1_main)
 ```
 
+
 ```{r illustrate trainID and express line, echo=FALSE}
 kable(trainIDforWholeTrip,align = 'c',caption = '<center>Table.A trainID for a whole trip')%>%
   kable_classic(full_width = T)%>%
