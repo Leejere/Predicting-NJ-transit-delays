@@ -156,14 +156,14 @@ paCounties =
   dplyr::select(GEOID,NAMELSAD,geometry)
 
 counties = rbind(njCounties, nyCounties, paCounties)
-
-njTracts <- 
-  tigris::tracts(state = "34") %>%
-  st_transform(crs)%>%
-  dplyr::select(GEOID,NAMELSAD,geometry)
-
-mapview(counties) + mapview(njStations)
 # 
+# njTracts <- 
+#   tigris::tracts(state = "34") %>%
+#   st_transform(crs)%>%
+#   dplyr::select(GEOID,NAMELSAD,geometry)
+
+# mapview(counties) + mapview(njStations)
+
 # grid.arrange(ncol=2,
 # ggplot(njCensusCounties)+geom_sf(),
 # ggplot(njCensusTracts)+geom_sf())
@@ -232,7 +232,6 @@ trainsSep = read.csv('2019_09.csv') %>%
          actual_time = ymd_hms(actual_time)) %>%
   dplyr::select(-status,-type)
 
-
 trainsOct = read.csv('2019_10.csv') %>%
   filter(., type == 'NJ Transit' & status == 'departed' &
            line != 'Princeton Shuttle') %>%
@@ -252,11 +251,11 @@ trains = rbind(trainsSep, trainsOct) %>%
 ```{r illustrate trainID and express line, eval=FALSE}
 ## A trainID for a whole trip
 trainIDforWholeTrip = trains%>%
-  filter(train_id==7824,date=="2019-10-06")%>%
-  arrange(date,train_id)%>%
+  filter(train_id == 7824, date == "2019-10-06")%>%
+  arrange(date, train_id)%>%
   dplyr::select(date,train_id,stop_sequence,from,to,line)
 
-kable(trainIDforWholeTrip,align = 'c',caption = '<center>Table.A trainID for a whole trip')%>%
+kable(trainIDforWholeTrip,align = 'c',caption = '<center>Table.A trainID for a whole trip</center>')%>%
   kable_classic(full_width = T)%>%
   kable_styling(position = "center",font_size = 12)%>%
   column_spec(2, background = palette1_assist)%>%
@@ -292,7 +291,7 @@ kable(TrainIDforDifDay,align = 'c',caption = '<center>Table.A TrainID is allocat
 
 
 ```{r illustrate trainID and express line, echo=FALSE}
-kable(trainIDforWholeTrip,align = 'c',caption = '<center>Table.A trainID for a whole trip')%>%
+kable(trainIDforWholeTrip,align = 'c',caption = '<center>Table.A trainID for a whole trip</center>')%>%
   kable_classic(full_width = T)%>%
   kable_styling(position = "center",font_size = 12)%>%
   column_spec(2, background = palette1_assist)%>%
@@ -300,7 +299,7 @@ kable(trainIDforWholeTrip,align = 'c',caption = '<center>Table.A trainID for a w
 ```
 
 ```{r illustrate trainID and express line, echo=FALSE}
-kable(difTrainIDs,align = 'c',caption = '<center>Table.Different TrainIDs within the same day & Express or normal lines')%>%
+kable(difTrainIDs,align = 'c',caption = '<center>Table.Different TrainIDs within the same day & Express or normal lines</center>')%>%
   kable_classic(full_width = T)%>%
   kable_styling(position = "center",font_size = 12)%>%
   column_spec(2, background = palette1_assist)%>%
@@ -309,7 +308,7 @@ kable(difTrainIDs,align = 'c',caption = '<center>Table.Different TrainIDs within
 ```
 
 ```{r illustrate trainID and express line, echo=FALSE}
-kable(TrainIDforDifDay,align = 'c',caption = '<center>Table.A TrainID is allocated for the specific time slot everyday')%>%
+kable(TrainIDforDifDay,align = 'c',caption = '<center>Table.A TrainID is allocated for the specific time slot everyday</center>')%>%
   kable_classic(full_width = T)%>%
   kable_styling(position = "center",font_size = 12)%>%
   column_spec(2, background = palette1_assist)%>%
@@ -318,12 +317,13 @@ kable(TrainIDforDifDay,align = 'c',caption = '<center>Table.A TrainID is allocat
 
 ```{r distinguish sublines, eval = FALSE}
 # Distinguish Express and normal lines
-
+# When stop_sequence == 1, certain possibilities for uptown direction, certain for downtown
 trains = trains%>%
   filter(from != to)%>%
   filter(from !="secaucus concourse" & to!="secaucus upper lvl")%>%
   filter(from !="east orange" & to!="brick church")%>%
   filter(from !="new york penn station" & to!="maplewood")
+# Why add this chunk?
 
 lineList = unique(trains$line)
 for (k in lineList) {
@@ -346,7 +346,6 @@ for (k in lineList) {
 
 unique(trains$line)
 ```
-
 
 ```{r delay_lag_2_hours, eval = FALSE}
 # Delays on this line two hours prior
@@ -382,6 +381,78 @@ for(i in 1:nrow(trains)){
   }
 }
 write.csv(trains, 'trains.csv')
+
+# Station-based average delay (2-hour lag)
+```
+
+```{r delay station average 2 hours, eval = FALSE}
+trains = read.csv('trains.csv') %>% dplyr::select(-X,-status,-type) %>%
+  mutate(timeOfPrediction = ymd_hms(timeOfPrediction))
+
+stationAvgDelayBase = trains %>% 
+  dplyr::select(station = to, actual_time, delay_minutes) %>%
+  mutate(actual_time = ymd_hms(actual_time))
+
+findAvgStationDelay = function(timeOfPrediction, depStation){
+  narrowDown = 
+    stationAvgDelayBase %>%
+    filter(., station == depStation &
+             actual_time %within% interval(
+                            timeOfPrediction - hours(1), timeOfPrediction
+                          ))
+  return(mean(narrowDown$delay_minutes, na.rm = T))
+}
+
+# Add station lag delay data
+# This station
+for(i in 1:nrow(trains)){
+  depStation = trains[i, 'to']
+  timeOfPrediction = trains[i, 'timeOfPrediction']
+  stationDelay = findAvgStationDelay(timeOfPrediction, depStation)
+  trains[i, 'stationDelay'] = stationDelay
+  if(i %% 1000 == 0){
+    print(i)
+  }
+}
+
+```
+
+```{r delay station average 2 hours lag 1 station, eval = FALSE}
+# The last station
+for(i in 1:nrow(trains)){
+  depStation = trains[i, 'from']
+  timeOfPrediction = trains[i, 'timeOfPrediction']
+  lag1StationDelay = findAvgStationDelay(timeOfPrediction, depStation)
+  trains[i, 'stationDelay'] = stationDelay
+  if(i %% 1000 == 0){
+    print(i)
+  }
+}
+```
+
+```{r delay station average 2 hours lag 2 stations, eval = FALSE}
+lastStation = 
+  trains %>%
+  dplyr::select(date, train = train_id, sequence = stop_sequence, lag2Station = from) %>%
+  mutate(sequencePlus = sequence + 1) %>%
+  dplyr::select(-sequence)
+
+
+trains = trains %>%
+  left_join(lastStation, by = c('date' = 'date',
+                                'train_id' = 'train',
+                                'stop_sequence' = 'sequencePlus')) %>%
+  mutate(lag2Station = ifelse(is.na(lag2Station), from, lag2Station))
+
+for(i in 1:nrow(trains)){
+  depStation = trains[i, 'lag2Station']
+  timeOfPrediction = trains[i, 'timeOfPrediction']
+  lag2StationDelay = findAvgStationDelay(timeOfPrediction, depStation)
+  trains[i, 'stationDelay'] = stationDelay
+  if(i %% 1000 == 0){
+    print(i)
+  }
+}
 ```
 
 ```{r weather_stations}
@@ -449,6 +520,48 @@ trains = trains %>%
 
 ```
 
+```{r make panel, eval = FALSE}
+
+trainsTimeInterval = 
+  trains %>%
+  mutate(timeHour = floor_date(trains3$scheduledTime, unit = 'hour'))
+
+# All the involved stations
+
+stations = trainsTimeInterval %>%
+  dplyr::select(station = to, geometry) %>%
+  unique()
+
+# All the involved hour intervals
+
+allIntervals = 
+  seq(ymd_hms('2019-09-01 00:00:00'), ymd_hms('2019-11-01 02:00:00'), by = 'hour')
+
+# Create empty hour-station panel
+panel = 
+  expand.grid(hour = allIntervals,
+              station = stations$station) %>%
+  left_join(stations, by = 'station') %>%
+  st_sf() %>%
+  mutate(week = week(hour),
+         dayOfWeek = wday(hour, label = T))
+
+delayAgg = trainsTimeInterval %>%
+  group_by(timeHour, to) %>%
+  summarize(avgDelay = mean(delay_minutes))
+
+delayPanel = panel %>%
+  left_join(st_drop_geometry(delayAgg),
+            by = c('hour' = 'timeHour',
+                   'station' = 'to')) %>%
+  replace(is.na(.), 0)
+
+# Or maybe it should not be a panel after all
+# But rather from three hours prior to two hours prior
+
+
+```
+
 ```{r time_fixed_effects}
 
 # Add time fixed effect & Select weeks
@@ -462,7 +575,7 @@ trains2 = trains %>%
   #   TRUE ~ "test"))
 ```
 
-```{r lag_one_day}
+```{r lag_one_day, eval = FALSE}
 # Lag one day
 trains3 = 
   trains2 %>%
@@ -509,7 +622,6 @@ for(i in weatherStationList){
 ```
 
 ```{r join_weather}
-
 # Floor time
 trains3$timeHour = floor_date(trains3$scheduledTime, unit = 'hour')
 
@@ -517,7 +629,6 @@ trains4 = trains3 %>%
   left_join(weather,
             by = c('weatherStationID' = 'weatherStationID',
                    'timeHour' = 'hour'))
-
 ```
 
 
