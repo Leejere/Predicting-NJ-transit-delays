@@ -73,6 +73,12 @@ library(sjPlot)
 library(sjmisc)
 library(sjlabelled)
 library(mapview)
+library(ggmap)
+library(jsonlite)
+
+ll <- function(dat, proj4 = 4326){
+st_transform(dat, proj4)
+}
 
 root.dir = "https://raw.githubusercontent.com/urbanSpatial/Public-Policy-Analytics-Landing/master/DATA/"
 source("https://raw.githubusercontent.com/urbanSpatial/Public-Policy-Analytics-Landing/master/functions.r")
@@ -223,6 +229,19 @@ njStations = njStations %>%
           join = st_within)
 ```
 
+```{r,fig.height = 3}
+base_map <- get_map(location = unname(st_bbox(ll(st_buffer(st_union(njCounties),11000)))),maptype = "terrian")
+
+ggmap(base_map) + 
+  geom_sf(data=ll(st_union(njCounties)),color="black",size=1.5,fill = "transparent",inherit.aes = FALSE)+
+  geom_sf(data=ll(njCounties),color="black",size=0.5,linetype ="dashed",fill = "transparent",inherit.aes = FALSE)+
+  geom_sf(data=ll(njStations),size=1.75,color=palette1_main,inherit.aes = FALSE)+
+  labs(title = "Map of NJ Transit Railway Stations", 
+       subtitle = "Red dots are stations")+
+  mapTheme()
+
+```
+
 ```{r read_trains_data}
 trainsSep = read.csv('2019_09.csv') %>%
   filter(., type == 'NJ Transit' & status == 'departed' &
@@ -246,6 +265,123 @@ trains = rbind(trainsSep, trainsOct) %>%
   # Trying to standardize station names
   mutate(to = tolower(to),
          from = tolower(from)) 
+
+trainsWithGeometry = trains %>%
+  filter(., to != 'secaucus concourse') %>%
+  mutate(to = 
+           case_when(
+             str_detect(to, '-') ~
+               substr(to, 1, str_locate(to, '-')[[1]] - 1),
+             substr(to, nchar(to) - 15, nchar(to)) == ' railway station'~
+               substr(to, 1, nchar(to) - 16),
+             substr(to, nchar(to) - 12, nchar(to)) == ' rail station'~
+               substr(to, 1, nchar(to) - 13),
+             substr(to, nchar(to) - 7, nchar(to)) == ' station' ~
+               substr(to, 1, nchar(to) - 8),
+             substr(to, nchar(to) - 8, nchar(to)) == ' terminal' ~
+               substr(to, 1, nchar(to) - 9),
+             TRUE ~ to
+           ),
+         from = 
+           case_when(
+             str_detect(from, '-') ~
+               substr(from, 1, str_locate(from, '-')[[1]] - 1),
+             substr(from, nchar(from) - 15, nchar(from)) == ' railway station'~
+               substr(from, 1, nchar(from) - 16),
+             substr(from, nchar(from) - 12, nchar(from)) == ' rail station'~
+               substr(from, 1, nchar(from) - 13),
+             substr(from, nchar(from) - 7, nchar(from)) == ' station' ~
+               substr(from, 1, nchar(from) - 8),
+             substr(from, nchar(from) - 8, nchar(from)) == ' terminal' ~
+               substr(from, 1, nchar(from) - 9),TRUE ~ from
+           )) %>%
+  left_join(njStations, by = c('to' = 'station')) %>%
+  st_sf() %>%
+  dplyr::select(-joined)
+```
+
+```{r,fig.width = 3}
+#不同线路的平均延迟时间
+trainsWithGeometry%>%
+  st_drop_geometry()%>%
+  dplyr::select(delay_minutes,line)%>%
+  na.omit()%>%
+  group_by(line)%>%
+  summarise(averageDelay=mean(delay_minutes))%>%
+  ggplot(aes(line,averageDelay))+
+  geom_bar(fill=palette1_main,position ="dodge", stat ="summary", fun ="mean")+
+  plotTheme()+ 
+  theme(legend.position = "none",
+        axis.text.x = element_text(angle = 90, hjust = 1))
+```
+
+
+```{r,fig.height =6}
+#同一线路的不同站的平均时间（13条线）
+trainsWithGeometry%>%
+  st_drop_geometry()%>%
+  dplyr::select(to,delay_minutes,line)%>%
+  na.omit()%>%
+  group_by(to,line)%>%
+  summarise(averageDelay=mean(delay_minutes))%>%
+  ggplot(aes(to,averageDelay))+
+  geom_bar(fill=palette1_main,position ="dodge", stat ="summary", fun ="mean")+
+  facet_wrap(~line, scales = "free",ncol=3)+
+  labs(title = "Average delay for every station in every line")+
+  plotTheme()+ 
+  theme(legend.position = "none",
+        axis.text.x = element_text(angle = 90, hjust = 1),
+        panel.spacing = unit(2, 'lines'))
+```
+
+
+```{r,fig.height =2,fig.width=6}
+#No Jersey Coast(最多28个站)的不同时间段的线的平均延迟时间as the fucntion of hour
+#secodn graph （single station,1条线）
+
+### 两个时间段的星期数对不上？？？
+monday <-trainsWithGeometry%>%
+  st_drop_geometry()%>%
+  filter(line=="No Jersey Coast")%>%
+  na.omit()%>%
+  mutate(interval_hour = ymd_h(substr(scheduled_time, 1, 13)),
+         dayotw = wday(interval_hour),
+         week = week(scheduled_time),
+         hour = hour(scheduled_time))%>%
+  arrange(dayotw,interval_hour)%>%
+  filter(week%in%(36:43))%>%
+  mutate(monday = ifelse(dayotw == 1 & hour == 0,interval_hour, 0)) %>%
+  filter(monday != 0)
+
+grid.arrange(ncol=1,
+a=trainsWithGeometry%>%
+  st_drop_geometry()%>%
+  filter(line=="No Jersey Coast")%>%
+  na.omit()%>%
+  mutate(interval_hour = ymd_h(substr(scheduled_time, 1, 13)),
+         week = week(scheduled_time))%>%
+  filter(week%in%(36:43))%>%
+  group_by(interval_hour,line,date)%>%
+  summarise(AverageDelayInHour = mean(delay_minutes))%>%
+  ggplot(aes(interval_hour,AverageDelayInHour)) + 
+  geom_line(color=palette1_main,size=0.5)+
+  geom_vline(data = monday, aes(xintercept = interval_hour),linetype = "dashed",size=1)+
+  labs(title = "No Jersey Coast")+
+  plotTheme(),
+trainsWithGeometry%>%
+  st_drop_geometry()%>%
+  filter(line=="No Jersey Coast" & to=="hazlet")%>%
+  na.omit()%>%
+  mutate(interval_hour = ymd_h(substr(scheduled_time, 1, 13)),
+         week = week(scheduled_time))%>%
+  filter(week%in%(36:43))%>%
+  group_by(interval_hour,date)%>%
+  summarise(AverageDelayInHour = mean(delay_minutes))%>%
+  ggplot(aes(interval_hour,AverageDelayInHour)) + 
+  geom_line(color=palette1_main,size=0.5)+
+  geom_vline(data = monday, aes(xintercept = interval_hour),linetype = "dashed",size=1)+
+  labs(title = "hazlet station")+
+  plotTheme())
 ```
 
 ```{r illustrate trainID and express line, eval=FALSE}
@@ -316,17 +452,15 @@ kable(TrainIDforDifDay,align = 'c',caption = '<center>Table.A TrainID is allocat
 
 ```{r distinguish sublines, eval = FALSE}
 # Distinguish Express and normal lines
-# When stop_sequence == 1, certain possibilities for uptown direction, certain for downtown
-trains = trains%>%
+trains_analysis_subline = trains%>%
   filter(from != to)%>%
   filter(from !="secaucus concourse" & to!="secaucus upper lvl")%>%
   filter(from !="east orange" & to!="brick church")%>%
   filter(from !="new york penn station" & to!="maplewood")
-# Why add this chunk?
 
-lineList = unique(trains$line)
+lineList = unique(trains_analysis_subline$line)
 for (k in lineList) {
-  LineTool = trains%>%
+  LineTool = trains_analysis_subline%>%
     filter(line==k,stop_sequence=="2")%>%
     arrange(date,train_id)%>%
     group_by(from,to,train_id)%>%
@@ -339,11 +473,83 @@ for (k in lineList) {
       EvLine = filter(LineTool,from==i & to==j)
       listTrainID = unique(EvLine$train_id)
       if (length(listTrainID>0)){
-        trains = trains%>%mutate(line = case_when(train_id %in% listTrainID ~ paste(line,n, sep = "_subline_"),TRUE ~ line))
+        trains_analysis_subline = trains_analysis_subline%>%mutate(line = case_when(train_id %in% listTrainID ~ paste(line,n, sep = "_subline_"),TRUE ~ line))
         print(c(n,i,j))
         n = n+1}}}}
 
-unique(trains$line)
+trains_analysis_subline <- as.data.frame(unique(trains_analysis_subline$line))%>%
+  rename("sublineList" = "unique(trains_analysis_subline$line)")%>%
+  arrange(sublineList)
+
+i=1
+a=1
+tableForSublines <- data.frame(matrix(NA,nrow=10))
+tmp1  <- trains_analysis_subline[c(1:3),]
+tmp2  <- trains_analysis_subline[c(4:9),]
+tmp3  <- trains_analysis_subline[c(10:14),]
+tmp4  <- trains_analysis_subline[c(15:19),]
+tmp5  <- trains_analysis_subline[20,]
+tmp6  <- trains_analysis_subline[c(21:27),]
+tmp7  <- trains_analysis_subline[c(28:36),]
+tmp8  <- trains_analysis_subline[c(37:43),]
+tmp9  <- trains_analysis_subline[c(44:50),]
+tmp10  <- trains_analysis_subline[c(51:53),]
+tmp11  <- trains_analysis_subline[c(54:59),]
+length(tmp1) = length(c(1:10))
+length(tmp2) = length(c(1:10))
+length(tmp3) = length(c(1:10))
+length(tmp4) = length(c(1:10))
+length(tmp5) = length(c(1:10))
+length(tmp6) = length(c(1:10))
+length(tmp7) = length(c(1:10))
+length(tmp8) = length(c(1:10))
+length(tmp9) = length(c(1:10))
+length(tmp10) = length(c(1:10))
+length(tmp11) = length(c(1:10))
+tableForSublines <- cbind(tableForSublines, tmp5) 
+tableForSublines <- cbind(tableForSublines, tmp10) 
+tableForSublines <- cbind(tableForSublines, tmp1) 
+tableForSublines <- cbind(tableForSublines, tmp3) 
+tableForSublines <- cbind(tableForSublines, tmp4) 
+tableForSublines <- cbind(tableForSublines, tmp2) 
+tableForSublines <- cbind(tableForSublines, tmp11) 
+tableForSublines <- cbind(tableForSublines, tmp6) 
+tableForSublines <- cbind(tableForSublines, tmp8) 
+tableForSublines <- cbind(tableForSublines, tmp9) 
+tableForSublines <- cbind(tableForSublines, tmp7) 
+
+tableForSublines = tableForSublines[1:9,2:12]
+tableForSublines[is.na(tableForSublines)] = ""
+kable(tableForSublines,align = 'c',caption = '<center>Table.XXX')%>%
+  kable_classic(full_width = T)%>%
+  kable_styling(position = "center",font_size = 12)
+```
+```{r}
+# When stop_sequence == 1, certain possibilities for uptown direction, certain for downtown
+
+trains_analysis_subline = trains%>%
+  filter(from != to)%>%
+  filter(from !="secaucus concourse" & to!="secaucus upper lvl")%>%
+  filter(from !="east orange" & to!="brick church")%>%
+  filter(from !="new york penn station" & to!="maplewood")
+
+
+LineTool = trains_analysis_subline%>%
+    filter(line=="Northeast Corrdr",stop_sequence=="1")%>%
+    arrange(date,train_id)%>%
+    group_by(from,to,train_id)%>%
+    summarise()
+listFrom = c("new york penn station")
+# sum(trains$from == "jefferson")
+a=unique(trains%>%filter(line=="Northeast Corrdr",stop_sequence=="1")%>%dplyr::select(from))
+
+EvLine = filter(LineTool,from %in% listFrom)
+listTrainID = unique(EvLine$train_id)
+trains_analysis_subline = trains_analysis_subline%>%mutate(line = case_when(train_id %in% listTrainID ~ paste(line,"_From",sep = ""),
+                                                                            TRUE ~line))
+
+unique(trains_analysis_subline$line)
+
 ```
 
 ```{r delay_lag_2_hours, eval = FALSE}
