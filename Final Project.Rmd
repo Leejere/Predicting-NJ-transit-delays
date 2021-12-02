@@ -289,7 +289,6 @@ kable(TrainIDforDifDay,align = 'c',caption = '<center>Table.A TrainID is allocat
   column_spec(1,background = palette1_main)
 ```
 
-
 ```{r illustrate trainID and express line, echo=FALSE}
 kable(trainIDforWholeTrip,align = 'c',caption = '<center>Table.A trainID for a whole trip</center>')%>%
   kable_classic(full_width = T)%>%
@@ -389,7 +388,7 @@ write.csv(trains, 'trains.csv')
 trains = read.csv('trains.csv') %>% dplyr::select(-X,-status,-type) %>%
   mutate(timeOfPrediction = ymd_hms(timeOfPrediction))
 
-stationAvgDelayBase = trains %>% 
+stationAvgDelayBase = trainsWithoutNA %>% 
   dplyr::select(station = to, actual_time, delay_minutes) %>%
   mutate(actual_time = ymd_hms(actual_time))
 
@@ -423,32 +422,36 @@ for(i in 1:nrow(trains)){
   depStation = trains[i, 'from']
   timeOfPrediction = trains[i, 'timeOfPrediction']
   lag1StationDelay = findAvgStationDelay(timeOfPrediction, depStation)
-  trains[i, 'stationDelay'] = stationDelay
+  trains[i, 'lag1StationDelay'] = lag1StationDelay
   if(i %% 1000 == 0){
     print(i)
   }
 }
+
+
 ```
 
 ```{r delay station average 2 hours lag 2 stations, eval = FALSE}
 lastStation = 
-  trains %>%
+  trainsWithoutNA %>%
   dplyr::select(date, train = train_id, sequence = stop_sequence, lag2Station = from) %>%
   mutate(sequencePlus = sequence + 1) %>%
   dplyr::select(-sequence)
 
+trainsWithoutNA = trains %>% filter(., !is.na(stop_sequence))
 
-trains = trains %>%
-  left_join(lastStation, by = c('date' = 'date',
+trainsTest =
+  left_join(trainsWithoutNA, lastStation, by = c('date' = 'date',
                                 'train_id' = 'train',
                                 'stop_sequence' = 'sequencePlus')) %>%
   mutate(lag2Station = ifelse(is.na(lag2Station), from, lag2Station))
 
-for(i in 1:nrow(trains)){
-  depStation = trains[i, 'lag2Station']
-  timeOfPrediction = trains[i, 'timeOfPrediction']
+
+for(i in 1:nrow(trainsTest)){
+  depStation = trainsTest[i, 'lag2Station']
+  timeOfPrediction = trainsTest[i, 'timeOfPrediction']
   lag2StationDelay = findAvgStationDelay(timeOfPrediction, depStation)
-  trains[i, 'stationDelay'] = stationDelay
+  trainsTest[i, 'lag2StationDelay'] = lag2StationDelay
   if(i %% 1000 == 0){
     print(i)
   }
@@ -630,5 +633,3 @@ trains4 = trains3 %>%
             by = c('weatherStationID' = 'weatherStationID',
                    'timeHour' = 'hour'))
 ```
-
-
