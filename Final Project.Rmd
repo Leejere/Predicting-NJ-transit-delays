@@ -344,9 +344,84 @@ for (k in lineList) {
         n = n+1}}}}
 
 unique(trains$line)
+
+trains_analysis_subline <- as.data.frame(unique(trains_analysis_subline$line))%>%
+  rename("sublineList" = "unique(trains_analysis_subline$line)")%>%
+  arrange(sublineList)
+
+i=1
+a=1
+tableForSublines <- data.frame(matrix(NA,nrow=10))
+tmp1  <- trains_analysis_subline[c(1:3),]
+tmp2  <- trains_analysis_subline[c(4:9),]
+tmp3  <- trains_analysis_subline[c(10:14),]
+tmp4  <- trains_analysis_subline[c(15:19),]
+tmp5  <- trains_analysis_subline[20,]
+tmp6  <- trains_analysis_subline[c(21:27),]
+tmp7  <- trains_analysis_subline[c(28:36),]
+tmp8  <- trains_analysis_subline[c(37:43),]
+tmp9  <- trains_analysis_subline[c(44:50),]
+tmp10  <- trains_analysis_subline[c(51:53),]
+tmp11  <- trains_analysis_subline[c(54:59),]
+length(tmp1) = length(c(1:10))
+length(tmp2) = length(c(1:10))
+length(tmp3) = length(c(1:10))
+length(tmp4) = length(c(1:10))
+length(tmp5) = length(c(1:10))
+length(tmp6) = length(c(1:10))
+length(tmp7) = length(c(1:10))
+length(tmp8) = length(c(1:10))
+length(tmp9) = length(c(1:10))
+length(tmp10) = length(c(1:10))
+length(tmp11) = length(c(1:10))
+tableForSublines <- cbind(tableForSublines, tmp5) 
+tableForSublines <- cbind(tableForSublines, tmp10) 
+tableForSublines <- cbind(tableForSublines, tmp1) 
+tableForSublines <- cbind(tableForSublines, tmp3) 
+tableForSublines <- cbind(tableForSublines, tmp4) 
+tableForSublines <- cbind(tableForSublines, tmp2) 
+tableForSublines <- cbind(tableForSublines, tmp11) 
+tableForSublines <- cbind(tableForSublines, tmp6) 
+tableForSublines <- cbind(tableForSublines, tmp8) 
+tableForSublines <- cbind(tableForSublines, tmp9) 
+tableForSublines <- cbind(tableForSublines, tmp7) 
+
+tableForSublines = tableForSublines[1:9,2:12]
+tableForSublines[is.na(tableForSublines)] = ""
+kable(tableForSublines,align = 'c',caption = '<center>Table.XXX')%>%
+  kable_classic(full_width = T)%>%
+  kable_styling(position = "center",font_size = 12)
 ```
 
-```{r delay_lag_2_hours, eval = FALSE}
+```{r}
+# When stop_sequence == 1, certain possibilities for uptown direction, certain for downtown
+
+# trains_analysis_subline = trains%>%
+#   filter(from != to)%>%
+#   filter(from !="secaucus concourse" & to!="secaucus upper lvl")%>%
+#   filter(from !="east orange" & to!="brick church")%>%
+#   filter(from !="new york penn station" & to!="maplewood")
+# 
+# 
+# LineTool = trains_analysis_subline%>%
+#     filter(line=="Northeast Corrdr",stop_sequence=="1")%>%
+#     arrange(date,train_id)%>%
+#     group_by(from,to,train_id)%>%
+#     summarise()
+# listFrom = c("new york penn station")
+# # sum(trains$from == "jefferson")
+# a=unique(trains%>%filter(line=="Northeast Corrdr",stop_sequence=="1")%>%dplyr::select(from))
+# 
+# EvLine = filter(LineTool,from %in% listFrom)
+# listTrainID = unique(EvLine$train_id)
+# trains_analysis_subline = trains_analysis_subline%>%mutate(line = case_when(train_id %in% listTrainID ~ paste(line,"_From",sep = ""),
+#                                                                             TRUE ~line))
+# 
+# unique(trains_analysis_subline$line)
+
+```
+
+```{r delay_lag_2_hours for the specific line, eval = FALSE}
 # Delays on this line two hours prior
 
 # Add a field: time of prediction
@@ -641,3 +716,7 @@ trains4 = trains3 %>%
             by = c('weatherStationID' = 'weatherStationID',
                    'timeHour' = 'hour'))
 ```
+
+pREDICTION MODEL
+
+And the delay causes.
