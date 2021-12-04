@@ -168,8 +168,12 @@ counties = rbind(njCounties, nyCounties, paCounties)
 #   st_transform(crs)%>%
 #   dplyr::select(GEOID,NAMELSAD,geometry)
 
-# mapview(counties) + mapview(njStations)
-
+mapview(counties) + mapview(njStations)
+trains %>%
+  filter(stop_sequence == 1) %>%
+  dplyr::select(to) %>%
+  unique() %>%
+  mapview()
 # grid.arrange(ncol=2,
 # ggplot(njCensusCounties)+geom_sf(),
 # ggplot(njCensusTracts)+geom_sf())
@@ -228,6 +232,7 @@ njStations = njStations %>%
   st_join(counties %>% dplyr::select(GEOID, geometry),
           join = st_within)
 ```
+
 ```{r,fig.height = 3}
 base_map <- get_map(location = unname(st_bbox(ll(st_buffer(st_union(njCounties),11000)))),maptype = "terrian")
 
@@ -315,7 +320,6 @@ trainsWithGeometry%>%
         axis.text.x = element_text(angle = 90, hjust = 1))
 ```
 
-
 ```{r,fig.height =6}
 #同一线路的不同站的平均时间（13条线）
 trainsWithGeometry%>%
@@ -333,7 +337,6 @@ trainsWithGeometry%>%
         axis.text.x = element_text(angle = 90, hjust = 1),
         panel.spacing = unit(2, 'lines'))
 ```
-
 
 ```{r,fig.height =2,fig.width=6}
 #No Jersey Coast(最多28个站)的不同时间段的线的平均延迟时间as the fucntion of hour
@@ -653,17 +656,17 @@ trainsTest =
   mutate(lag2Station = ifelse(is.na(lag2Station), from, lag2Station))
 
 
-for(i in 1:nrow(trainsTest)){
-  depStation = trainsTest[i, 'lag2Station']
-  timeOfPrediction = trainsTest[i, 'timeOfPrediction']
+for(i in 1:nrow(trains)){
+  depStation = trains[i, 'lag2Station']
+  timeOfPrediction = trains[i, 'timeOfPrediction']
   lag2StationDelay = findAvgStationDelay(timeOfPrediction, depStation)
-  trainsTest[i, 'lag2StationDelay'] = lag2StationDelay
+  trains[i, 'lag2StationDelay'] = lag2StationDelay
   if(i %% 1000 == 0){
     print(i)
   }
 }
 
-write.csv(trainsTest, 'trains.csv')
+write.csv(trains, 'trains.csv')
 
 trains = read.csv('trains.csv') %>% dplyr::select(-X) %>%
   mutate(timeOfPrediction = ymd_hms(timeOfPrediction),
@@ -828,8 +831,6 @@ firstStations = trainIDAndfirstStations %>%
   dplyr::select(firstStation) %>%
   unique()
 
-st_distance(trainIDAndStations[1,], firstStations[1,])
-
 distanceMatrix = 
   expand.grid(firstStation = firstStations$firstStation,
               station = stations$station)
@@ -864,10 +865,38 @@ trains5 = trains4 %>%
 
 ```
 
+```{r distance to new york penn}
+
+NYPennStation = stations %>%
+  filter(., station == 'new york penn')
+
+stations = stations %>%
+  mutate(distNYPenn = 
+           st_distance(., NYPennStation) %>% as.numeric())
+
+trains5 = trains4 %>%
+  left_join(st_drop_geometry(trainIDAndStations) %>%
+              dplyr::select(-firstStation),
+            by = c('to' = 'station',
+                   'train' = 'train')) %>%
+  rename(distFirstStation = distance)
+
+trains6 = trains5 %>%
+  left_join(st_drop_geometry(stations) %>%
+              rename(lastStationDistNYPenn = distNYPenn),
+            by = c('from' = 'station')) %>%
+  left_join(st_drop_geometry(stations) %>%
+              rename(thisStationDistNYPenn = distNYPenn),
+            by = c('to' = 'station')) %>%
+  mutate(direction = 
+           ifelse(lastStationDistNYPenn > thisStationDistNYPenn,
+                  'downtown', 'uptown'))
+
+```
 
 ```{r model prep}
 
-trainsTrain = trains5 %>%
+trainsTrain = trains6 %>%
   filter(., legend == 'train')
 
 stationHourMean = trainsTrain %>%
@@ -888,7 +917,7 @@ trainsTrain = trainsTrain %>%
          lag2StationDelay = tidyr::replace_na(lag2StationDelay, 0),
          lagDelayDayPlus = tidyr::replace_na(lagDelayDayPlus, 0))
 
-trainsTest = trains5 %>%
+trainsTest = trains6 %>%
   filter(., legend == 'test') %>%
   mutate(lagDelay = tidyr::replace_na(lagDelay, 0),
          stationDelay = tidyr::replace_na(stationDelay, 0),
@@ -921,6 +950,12 @@ reg2hWTileWDist = lm(delay ~
                hour + dayOfWeek + precip + stationHour10Tile + distFirstStation,
              data = trainsTrain)
 
+reg2hWTileWDir = lm(delay ~ 
+               stop_sequence + to + line + lagDelay + stationDelay +
+               lag1StationDelay + lag2StationDelay + lagDelayDayPlus +
+               hour + dayOfWeek + precip + stationHour10Tile + direction,
+             data = trainsTrain)
+
 trainsTest = trainsTest %>%
   mutate(predict2h = predict(reg2h, newdata = trainsTest),
          absError2h = abs(delay - predict2h))
@@ -932,6 +967,10 @@ trainsTest = trainsTest %>%
 trainsTest = trainsTest %>%
   mutate(predict2hWTileWDist = predict(reg2hWTileWDist, newdata = trainsTest),
          absError2hWTileWDist = abs(delay - predict2hWTileWDist))
+
+trainsTest = trainsTest %>%
+  mutate(predict2hWTileWDir = predict(reg2hWTileWDir, newdata = trainsTest),
+         absError2hWTileWDir = abs(delay - predict2hWTileWDir))
 
 ggplot(trainsTest) +
   geom_histogram(aes(x = absError2h))
@@ -964,7 +1003,7 @@ ggplot(trainsTest) +
   geom_point(aes(x = delay, y = predictLnLog))
 ```
 
-```{r sq model, eval = FALSE}
+```{r sq model}
 # sq the dependent
 
 trainsTrain = trainsTrain %>%
@@ -988,7 +1027,12 @@ reg2hLnSqWTileWDist = lm(sqDelay ~
                hour + dayOfWeek + precip + stationHour10Tile + distFirstStation,
              data = trainsTrain)
 
-summary(reg2hLnSqSqWTile)
+reg2hLnSqWTileWDir = lm(sqDelay ~ 
+               stop_sequence + to + line + lagDelay + stationDelay +
+               lag1StationDelay + lag2StationDelay + lagDelayDayPlus +
+               hour + dayOfWeek + precip + stationHour10Tile + direction,
+             data = trainsTrain)
+
 
 trainsTest = trainsTest %>%
   mutate(sqPredict2hSq = predict(reg2hLnSq, newdata = trainsTest),
@@ -1005,12 +1049,17 @@ trainsTest = trainsTest %>%
          predict2hSqWTileWDist = sqPredict2hSqWTileWDist ^ 2,
          absError2hSqWTileWDist = abs(delay - predict2hSqWTileWDist))
 
+trainsTest = trainsTest %>%
+  mutate(sqPredict2hSqWTileWDir = predict(reg2hLnSqWTileWDir, newdata = trainsTest),
+         predict2hSqWTileWDir = sqPredict2hSqWTileWDir ^ 2,
+         absError2hSqWTileWDir = abs(delay - predict2hSqWTileWDir))
+
 ggplot(trainsTest) +
   geom_point(aes(x = delay, y = predict2hSqWTile))
 
 ```
 
-```{r square models both}
+```{r square models both, eval = FALSE}
 # sq both the dependent and the independent (not good)
 
 ggplot(trainsTrain) +
@@ -1042,7 +1091,7 @@ reg2hLnSqSq = lm(sqDelay ~
                    stop_sequence + to + line + lagDelay + I(lagDelay ^ 2) + stationDelay +
                    I(stationDelay ^ 2) + lag1StationDelay + I(lag1StationDelay ^ 2) +
                    lag2StationDelay + I(lag2StationDelay ^ 2) + lagDelayDayPlus +
-                   I(lagDelayDayPlus) +
+                   I(lagDelayDayPlus ^ 2) +
                    hour + dayOfWeek + precip,
                  data = trainsTrain)
 
@@ -1050,7 +1099,7 @@ reg2hLnSqSqWTile = lm(sqDelay ~
                    stop_sequence + to + line + lagDelay + I(lagDelay ^ 2) + stationDelay +
                    I(stationDelay ^ 2) + lag1StationDelay + I(lag1StationDelay ^ 2) +
                    lag2StationDelay + I(lag2StationDelay ^ 2) + lagDelayDayPlus +
-                   I(lagDelayDayPlus) +
+                   I(lagDelayDayPlus ^ 2) +
                    hour + dayOfWeek + precip + stationHour10Tile,
                  data = trainsTrain)
 
@@ -1058,8 +1107,15 @@ reg2hLnSqSqWTileWDist = lm(sqDelay ~
                    stop_sequence + to + line + lagDelay + I(lagDelay ^ 2) + stationDelay +
                    I(stationDelay ^ 2) + lag1StationDelay + I(lag1StationDelay ^ 2) +
                    lag2StationDelay + I(lag2StationDelay ^ 2) + lagDelayDayPlus +
-                   I(lagDelayDayPlus) +
+                   I(lagDelayDayPlus ^ 2) +
                    hour + dayOfWeek + precip + stationHour10Tile + distFirstStation,
+                 data = trainsTrain)
+
+reg2hLnSqSqWTileWDir = lm(sqDelay ~
+                   stop_sequence + to + line + lagDelay + I(lagDelay ^ 2) + stationDelay +
+                   I(stationDelay ^ 2) + lag1StationDelay +
+                   lag2StationDelay + lagDelayDayPlus +
+                     hour + dayOfWeek + precip + stationHour10Tile + direction,
                  data = trainsTrain)
 
 trainsTest = trainsTest %>%
@@ -1077,11 +1133,16 @@ trainsTest = trainsTest %>%
          predict2hSqSqWTileWDist = sqPredict2hSqSqWTileWDist ^ 2,
          absError2hSqSqWTileWDist = abs(delay - predict2hSqSqWTileWDist))
 
+trainsTest = trainsTest %>%
+  mutate(sqPredict2hSqSqWTileWDir = predict(reg2hLnSqSqWTileWDir, newdata = trainsTest),
+         predict2hSqSqWTileWDir = sqPredict2hSqSqWTileWDir ^ 2,
+         absError2hSqSqWTileWDir = abs(delay - predict2hSqSqWTileWDir))
+
 ggplot(trainsTest) +
   geom_point(aes(x = delay, y = predict2h)) +
   geom_abline(slope = 1, intercept = 0)
 ggplot(trainsTest) +
-  geom_point(aes(x = delay, y = predict2hSqSqWTileWDist)) +
+  geom_point(aes(x = delay, y = predict2hSqWTileWDir)) +
   geom_abline(slope = 1, intercept = 0)
 
 
@@ -1089,14 +1150,17 @@ ggplot(trainsTest) +
 mean(trainsTest$absError2h, na.rm = T)
 mean(trainsTest$absError2hWTile, na.rm = T)
 mean(trainsTest$absError2hWTileWDist, na.rm = T)
+mean(trainsTest$absError2hWTileWDir, na.rm = T)
 
 mean(trainsTest$absError2hSq, na.rm = T)
 mean(trainsTest$absError2hSqWTile, na.rm = T)
 mean(trainsTest$absError2hSqWTileWDist, na.rm = T)
+mean(trainsTest$absError2hSqWTileWDir, na.rm = T)
 
 mean(trainsTest$absError2hSqSq, na.rm = T)
 mean(trainsTest$absError2hSqSqWTile, na.rm = T)
 mean(trainsTest$absError2hSqSqWTileWDist, na.rm = T)
+mean(trainsTest$absError2hSqSqWTileWDir, na.rm = T)
 ```
 
 ```{r late-or-not logit reg, eval = FALSE}
@@ -1132,3 +1196,97 @@ ggplot(lateProbs, aes(x = probs, fill = as.factor(outcome))) +
   
 ```
 
+```{r different model for small delays}
+
+
+reg2hLnSqWTileWDirSmall = lm(sqDelay ~
+                   stop_sequence + to + line + lagDelay + stationDelay +
+                     lag1StationDelay + 
+                   lag2StationDelay + lagDelayDayPlus +
+                   hour + dayOfWeek + precip + stationHour10Tile + direction,
+                 data = trainsTrain %>% filter(., delay <= 45))
+
+trainsTest = trainsTest %>%
+  mutate(sqPredict2hSqWTileWDirSmall = 
+           predict(reg2hLnSqWTileWDirSmall, newdata = trainsTest),
+         predict2hSqWTileWDirSmall = sqPredict2hSqWTileWDirSmall ^ 2)
+
+trainsTest = trainsTest %>%
+  mutate(predict2hSeg = 
+           ifelse(predict2hSqWTileWDir <= 25,
+                  predict2hSqWTileWDirSmall,
+                  predict2hSqWTileWDir),
+         absError2hSeg = abs(delay - predict2hSeg))
+
+mean(trainsTest$absError2hSqSq, na.rm = T)
+mean(trainsTest$absError2hSqSqWTile, na.rm = T)
+mean(trainsTest$absError2hSqSqWTileWDist, na.rm = T)
+mean(trainsTest$absError2hSqSqWTileWDir, na.rm = T)
+mean(trainsTest$absError2hSeg, na.rm = T)
+
+ggplot(trainsTest) +
+  geom_point(aes(x = delay, y = predict2hSeg)) +
+  geom_abline(slope = 1, intercept = 0)
+```
+
+```{r short term prediction, eval = FALSE}
+# Delays on this line two hours prior
+
+# Add a field: time of prediction (short-term)
+trainsS = trains6 %>%
+  mutate(timeOfPredictionS = scheduledTime - minutes(30)) %>%
+  st_drop_geometry
+
+# Add lag delay data (short-term)
+
+for(i in 1:nrow(trainsS)){
+  date = trainsS[[i, 'date']]
+  line = trainsS[[i, 'line']]
+  timeOfPredictionS = trainsS[[i, 'timeOfPredictionS']]
+  lagDelayS = findLagDelay(timeOfPredictionS, line, date)
+  trainsS[[i, 'lagDelayS']] = lagDelayS
+  if(i %% 1000 == 0){
+    print(i)
+  }
+}
+
+# delay station avg short term
+
+for(i in 1:nrow(trainsS)){
+  depStation = trainsS[[i, 'to']]
+  timeOfPredictionS = trainsS[[i, 'timeOfPredictionS']]
+  stationDelayS = findAvgStationDelay(timeOfPredictionS, depStation)
+  trainsS[[i, 'stationDelayS']] = stationDelayS
+  if(i %% 1000 == 0){
+    print(i)
+  }
+}
+
+# The last station (short)
+for(i in 1:nrow(trainsS)){
+  depStation = trainsS[[i, 'from']]
+  timeOfPredictionS = trainsS[[i, 'timeOfPredictionS']]
+  lag1StationDelayS = findAvgStationDelay(timeOfPredictionS, depStation)
+  trainsS[[i, 'lag1StationDelayS']] = lag1StationDelayS
+  if(i %% 1000 == 0){
+    print(i)
+  }
+}
+
+# The last before the last station (short)
+for(i in 1:nrow(trainsS)){
+  depStation = trainsS[[i, 'lag2Station']]
+  timeOfPredictionS = trains[[i, 'timeOfPredictionS']]
+  lag2StationDelayS = findAvgStationDelay(timeOfPredictionS, depStation)
+  trainsS[[i, 'lag2StationDelayS']] = lag2StationDelayS
+  if(i %% 1000 == 0){
+    print(i)
+  }
+}
+
+write.csv(trainsS, 'trainsS.csv')
+trainsSt = read.csv('trainsS.csv')
+
+
+
+```
