@@ -1,0 +1,1185 @@
+---
+title: "Final Project"
+author: "Jie Li"
+date: "11/24/2021"
+output:
+  html_document: 
+    toc: yes
+    toc_float: yes
+    code_folding: hide
+    theme: paper
+  pdf_document: default
+---
+
+<style>
+p.caption {
+  font-size: 0.8em;
+  text-align: center;
+  font-weight: normal;
+}
+    caption {
+      color: grey;
+      font-size: 0.8em;
+    } 
+body{
+  font-size: 11pt;
+  font-family: Open Sans;
+}
+h1,h2,h3,h4,h5,h6{
+  font-family: Open Sans;
+}
+td{
+  font-size: 9pt;
+  font-family: Open Sans;
+}
+th{
+  font-size: 0.8em;
+  font-family: Open Sans;
+  color: grey;
+}
+</style>
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+```
+
+```{r set_up}
+crs = 'EPSG:26913'
+
+library(stringr)
+library(tidyverse)
+library(sf)
+library(lubridate)
+library(tigris)
+library(gganimate)
+library(riem)
+library(gridExtra)
+library(knitr)
+library(kableExtra)
+library(FNN)
+library(spdep)
+library(caret)
+library(ckanr)
+library(grid)
+library(gridExtra)
+library(knitr)
+library(kableExtra)
+library(tidycensus)
+library(scales)
+library(stargazer)
+library(sjPlot)
+library(sjmisc)
+library(sjlabelled)
+library(mapview)
+library(ggmap)
+library(jsonlite)
+
+ll <- function(dat, proj4 = 4326){
+st_transform(dat, proj4)
+}
+
+root.dir = "https://raw.githubusercontent.com/urbanSpatial/Public-Policy-Analytics-Landing/master/DATA/"
+source("https://raw.githubusercontent.com/urbanSpatial/Public-Policy-Analytics-Landing/master/functions.r")
+
+windowsFonts(font = windowsFont('Open Sans'))
+mapTheme <- function(base_size = 35, title_size = 45) {
+  theme(
+    text = element_text( color = "black"),
+    plot.title = element_text(hjust = 0.5, size = title_size, colour = "black",face = "bold"), 
+    plot.subtitle = element_text(hjust = 0.5,size=base_size,face="italic"),
+    plot.caption = element_text(size=base_size,hjust=0),
+    axis.ticks = element_blank(),
+    panel.spacing = unit(6, 'lines'),
+    panel.background = element_blank(),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    panel.border = element_blank(),
+    strip.background = element_rect(fill = "grey80", color = "white"),
+    strip.text = element_text(size=base_size),
+    axis.title = element_text(face = "bold",size=base_size),
+    axis.text = element_blank(),
+    plot.background = element_blank(),
+    legend.background = element_blank(),
+    legend.title = element_text(size=base_size,colour = "black", face = "italic"),
+    legend.text = element_text(size=base_size,colour = "black", face = "italic"),
+    strip.text.x = element_text(size = base_size,face = "bold")
+  )
+}
+
+plotTheme <- function(base_size = 35, title_size = 45) {
+  theme(
+    text = element_text( color = "black"),
+    plot.title = element_text(hjust = 0.5, size = title_size, colour = "black",face = "bold"), 
+    plot.subtitle = element_text(hjust = 0.5,size=base_size,face="italic"),
+    plot.caption = element_text(size=base_size,hjust=0),
+    axis.ticks = element_blank(),
+    panel.spacing = unit(6, 'lines'),
+    panel.background = element_blank(),
+    panel.grid.major = element_line("grey80", size = 0.1),
+    panel.grid.minor = element_blank(),
+    panel.border = element_rect(colour = "black", fill=NA, size=6),
+    strip.background = element_rect(fill = "grey80", color = "white"),
+    strip.text = element_text(size=base_size),
+    axis.title = element_text(face = "bold",size=base_size),
+    axis.text = element_text(size=base_size),
+    plot.background = element_blank(),
+    legend.background = element_blank(),
+    legend.title = element_text(size=base_size,colour = "black", face = "italic"),
+    legend.text = element_text(size=base_size,colour = "black", face = "italic"),
+    strip.text.x = element_text(size = base_size,face = "bold")
+  )
+}
+
+color2 = '#FC6D5C'
+color3 = '#31649D'
+palette5 <- c("#f9b294","#f2727f","#c06c86","#6d5c7e","#315d7f")
+palette4 <- c("#f9b294","#f2727f","#c06c86","#6d5c7e")
+palette2 <- c("#f9b294","#f2727f")
+palette1_main <- "#F2727F"
+palette1_assist <- '#F9B294'
+```
+
+```{r geographies}
+njCounties =
+  tigris::counties(state = "34")%>%
+  st_transform(crs)%>%
+  dplyr::select(GEOID,NAMELSAD,geometry)
+nyCounties = 
+  tigris::counties(state = "NY")%>%
+  st_transform(crs)%>%
+  dplyr::select(GEOID,NAMELSAD,geometry)
+paCounties = 
+  tigris::counties(state = "PA")%>%
+  st_transform(crs)%>%
+  dplyr::select(GEOID,NAMELSAD,geometry)
+
+counties = rbind(njCounties, nyCounties, paCounties)
+# 
+# njTracts <- 
+#   tigris::tracts(state = "34") %>%
+#   st_transform(crs)%>%
+#   dplyr::select(GEOID,NAMELSAD,geometry)
+
+# mapview(counties) + mapview(njStations)
+
+# grid.arrange(ncol=2,
+# ggplot(njCensusCounties)+geom_sf(),
+# ggplot(njCensusTracts)+geom_sf())
+```
+
+```{r nj_stations}
+
+njStations = st_read('https://opendata.arcgis.com/datasets/4809dada94c542e0beff00600ee930f6_0.geojson') %>%
+  st_transform(crs) %>%
+  dplyr::select(station = STATION_ID, geometry) %>%
+  # Trying to standardize the station names...
+  mutate(station = tolower(station)) %>%
+  mutate(station = 
+           case_when(
+             # str_detect(station, '-') ~
+             #   substr(station, 1, str_locate(station, '-')[[1]] - 1),
+             substr(station, nchar(station) - 15, nchar(station)) == ' railway station'~
+               substr(station, 1, nchar(station) - 16),
+             substr(station, nchar(station) - 12, nchar(station)) == ' rail station'~
+               substr(station, 1, nchar(station) - 13),
+             substr(station, nchar(station) - 7, nchar(station)) == ' station' ~
+               substr(station, 1, nchar(station) - 8),
+             substr(station, nchar(station) - 8, nchar(station)) == ' terminal' ~
+               substr(station, 1, nchar(station) - 9),
+             TRUE ~ station
+           )) %>%
+  mutate(joined = 1)
+
+# Further modifying station names
+njStations[12, 1] = 'middletown nj'
+njStations[149, 1] = 'middletown ny'
+njStations[131, 1] = 'anderson street'
+njStations[99, 1] = 'atlantic city rail'
+njStations[87, 1] = 'bay street'
+njStations[134, 1] = 'wood ridge'
+njStations[90, 1] = 'watsessing avenue'
+njStations[133, 1] = 'teterboro'
+njStations[159, 1] = 'secaucus upper lvl'
+njStations[166, 1] = 'secaucus lower lvl'
+njStations[102, 1] = 'ramsey main st'
+njStations[156, 1] = 'ramsey route 17'
+njStations[102, 1] = 'ramsey main st'
+njStations[115, 1] = 'radburn fair lawn'
+njStations[140, 1] = 'princeton junction'
+njStations[92, 1] = 'philadelphia'
+njStations[165, 1] = 'pennsauken'
+njStations[80, 1] = 'mountain view'
+njStations[163, 1] = 'mount arlington'
+njStations[158, 1] = 'montclair state u'
+njStations[107, 1] = 'glen rock main line'
+njStations[114, 1] = 'glen rock boro hall'
+njStations[116, 1] = 'broadway fair lawn'
+njStations[132, 1] = 'essex street'
+
+njStations = njStations %>%
+  st_join(counties %>% dplyr::select(GEOID, geometry),
+          join = st_within)
+```
+```{r,fig.height = 3}
+base_map <- get_map(location = unname(st_bbox(ll(st_buffer(st_union(njCounties),11000)))),maptype = "terrian")
+
+ggmap(base_map) + 
+  geom_sf(data=ll(st_union(njCounties)),color="black",size=1.5,fill = "transparent",inherit.aes = FALSE)+
+  geom_sf(data=ll(njCounties),color="black",size=0.5,linetype ="dashed",fill = "transparent",inherit.aes = FALSE)+
+  geom_sf(data=ll(njStations),size=1.75,color=palette1_main,inherit.aes = FALSE)+
+  labs(title = "Map of NJ Transit Railway Stations", 
+       subtitle = "Red dots are stations")+
+  mapTheme()
+
+```
+
+```{r read_trains_data}
+trainsSep = read.csv('./MUSA508_Final/2019_09.csv') %>%
+  filter(., type == 'NJ Transit' & status == 'departed' &
+           line != 'Princeton Shuttle') %>%
+  mutate(date = ymd(date),
+         scheduled_time = ymd_hms(scheduled_time),
+         actual_time = ymd_hms(actual_time)) %>%
+  dplyr::select(-status,-type)
+
+trainsOct = read.csv('./MUSA508_Final/2019_10.csv') %>%
+  filter(., type == 'NJ Transit' & status == 'departed' &
+           line != 'Princeton Shuttle') %>%
+  mutate(date = ymd(date),
+         scheduled_time = ymd_hms(scheduled_time),
+         actual_time = ymd_hms(actual_time)) %>%
+  arrange(stop_sequence) %>%
+  dplyr::select(-status,-type)
+
+# Bind the two-month data
+trains = rbind(trainsSep, trainsOct) %>%
+  # Trying to standardize station names
+  mutate(to = tolower(to),
+         from = tolower(from)) 
+
+
+trainsWithGeometry = trains %>%
+  filter(., to != 'secaucus concourse') %>%
+  mutate(to = 
+           case_when(
+             str_detect(to, '-') ~
+               substr(to, 1, str_locate(to, '-')[[1]] - 1),
+             substr(to, nchar(to) - 15, nchar(to)) == ' railway station'~
+               substr(to, 1, nchar(to) - 16),
+             substr(to, nchar(to) - 12, nchar(to)) == ' rail station'~
+               substr(to, 1, nchar(to) - 13),
+             substr(to, nchar(to) - 7, nchar(to)) == ' station' ~
+               substr(to, 1, nchar(to) - 8),
+             substr(to, nchar(to) - 8, nchar(to)) == ' terminal' ~
+               substr(to, 1, nchar(to) - 9),
+             TRUE ~ to
+           ),
+         from = 
+           case_when(
+             str_detect(from, '-') ~
+               substr(from, 1, str_locate(from, '-')[[1]] - 1),
+             substr(from, nchar(from) - 15, nchar(from)) == ' railway station'~
+               substr(from, 1, nchar(from) - 16),
+             substr(from, nchar(from) - 12, nchar(from)) == ' rail station'~
+               substr(from, 1, nchar(from) - 13),
+             substr(from, nchar(from) - 7, nchar(from)) == ' station' ~
+               substr(from, 1, nchar(from) - 8),
+             substr(from, nchar(from) - 8, nchar(from)) == ' terminal' ~
+               substr(from, 1, nchar(from) - 9),TRUE ~ from
+           )) %>%
+  left_join(njStations, by = c('to' = 'station')) %>%
+  st_sf() %>%
+  dplyr::select(-joined)
+```
+
+```{r,fig.width=36, fig.height=24,out.width = '75%',fig.align = 'center'}
+#不同线路的平均延迟时间
+alllines <- trainsWithGeometry%>%
+  st_drop_geometry()%>%
+  dplyr::select(delay_minutes,line)%>%
+  na.omit()%>%
+  group_by(line)%>%
+  summarise(averageDelay=mean(delay_minutes))%>%
+  ggplot(aes(line,averageDelay))+
+  geom_bar(fill=palette1_main,position ="dodge", stat ="summary", fun ="mean")+
+  plotTheme(5,5)+ 
+  theme(legend.position = "none",
+        axis.text.x = element_text(angle = 90, hjust = 1))
+ggsave("alllines.png")
+```
+
+
+```{r,fig.width=36, fig.height=24,out.width = '75%',fig.align = 'center'}
+#同一线路的不同站的平均时间（13条线）
+linelist <- unique(trainsWithGeometry$line)
+
+for (i in linelist){
+  trainsWithGeometry%>%
+  st_drop_geometry()%>%
+  dplyr::select(to,delay_minutes,line)%>%
+  na.omit()%>%
+  group_by(to,line)%>%
+  summarise(averageDelay=mean(delay_minutes))%>%
+  filter(line == i)%>%
+  ggplot(aes(to,averageDelay))+
+  geom_bar(fill=palette1_main,position ="dodge", stat ="summary", fun ="mean")+
+  labs(title = "Average delay for every station in every line")+
+  plotTheme(5,5)+
+  theme(legend.position = "none",
+        axis.text.x = element_text(angle = 90, hjust = 1),
+        panel.spacing = unit(2, 'lines'))
+  ggsave(paste(i,".png",sep = ""))}
+
+
+trainsWithGeometry%>%
+  st_drop_geometry()%>%
+  dplyr::select(to,delay_minutes,line)%>%
+  na.omit()%>%
+  group_by(to,line)%>%
+  summarise(averageDelay=mean(delay_minutes))%>%
+  ggplot(aes(to,averageDelay))+
+  geom_bar(fill=palette1_main,position ="dodge", stat ="summary", fun ="mean")+
+  facet_wrap(~line, scales = "free",ncol=3)+
+  labs(title = "Average delay for every station in every line")+
+  plotTheme()+ 
+  theme(legend.position = "none",
+        axis.text.x = element_text(angle = 90, hjust = 1),
+        panel.spacing = unit(2, 'lines'))
+
+
+library(magick)
+library(magrittr)
+list.files(pattern = '*.png', full.names = TRUE) %>% 
+        image_read() %>% # reads each path file
+        image_join() %>% # joins image
+        image_animate(fps=1) %>% # animates, can opt for number of loops
+        image_write("allLines.gif") # write to current dir
+```
+
+
+```{r,fig.width=12, fig.height=8,out.width = '75%',fig.align = 'center'}
+for (i in linelist){
+  save <- trainsWithGeometry%>%
+  dplyr::select(to,delay_minutes,line)%>%
+  na.omit()%>%
+  group_by(to,line)%>%
+  summarise(averageDelay=mean(delay_minutes))%>%
+  filter(line == i)%>%
+  ggplot()+
+  geom_sf(data=st_union(njCounties),color="black",size=1.5,fill = "transparent")+
+  geom_sf(data=njCounties,color="black",size=0.5,linetype ="dashed",fill = "transparent")+
+  geom_sf(data=njStations,size=1,color=palette1_assist,alpha=0.5)+
+  geom_sf(aes(size=averageDelay),color=palette1_main,alpha=0.7)+
+  scale_size_continuous(range = c(1, 3))+
+  labs(title = paste(i,"Delay Distribution",sep = ""))+
+  mapTheme(10,25)+
+  theme(legend.position = "bottom")
+  ggsave(paste(i,"geo.png",sep = ""))}
+
+list.files(path="",pattern = '*.png', full.names = TRUE) %>% 
+        image_read() %>% # reads each path file
+        image_join() %>% # joins image
+        image_animate(fps=1) %>% # animates, can opt for number of loops
+        image_write("allLines.gif") # write to current dir
+```
+
+```{r,fig.height =2,fig.width=6}
+#No Jersey Coast(最多28个站)的不同时间段的线的平均延迟时间as the fucntion of hour
+#secodn graph （single station,1条线）
+
+### 两个时间段的星期数对不上？？？
+monday <-trainsWithGeometry%>%
+  st_drop_geometry()%>%
+  filter(line=="No Jersey Coast")%>%
+  na.omit()%>%
+  mutate(interval_hour = ymd_h(substr(scheduled_time, 1, 13)),
+         dayotw = wday(interval_hour),
+         week = week(scheduled_time),
+         hour = hour(scheduled_time))%>%
+  arrange(dayotw,interval_hour)%>%
+  filter(week%in%(36:43))%>%
+  mutate(monday = ifelse(dayotw == 1 & hour == 0,interval_hour, 0)) %>%
+  filter(monday != 0)
+
+grid.arrange(ncol=1,
+a=trainsWithGeometry%>%
+  st_drop_geometry()%>%
+  filter(line=="No Jersey Coast")%>%
+  na.omit()%>%
+  mutate(interval_hour = ymd_h(substr(scheduled_time, 1, 13)),
+         week = week(scheduled_time))%>%
+  filter(week%in%(36:43))%>%
+  group_by(interval_hour,line,date)%>%
+  summarise(AverageDelayInHour = mean(delay_minutes))%>%
+  ggplot(aes(interval_hour,AverageDelayInHour)) + 
+  geom_line(color=palette1_main,size=0.5)+
+  geom_vline(data = monday, aes(xintercept = interval_hour),linetype = "dashed",size=1)+
+  labs(title = "No Jersey Coast")+
+  plotTheme(),
+trainsWithGeometry%>%
+  st_drop_geometry()%>%
+  filter(line=="No Jersey Coast" & to=="hazlet")%>%
+  na.omit()%>%
+  mutate(interval_hour = ymd_h(substr(scheduled_time, 1, 13)),
+         week = week(scheduled_time))%>%
+  filter(week%in%(36:43))%>%
+  group_by(interval_hour,date)%>%
+  summarise(AverageDelayInHour = mean(delay_minutes))%>%
+  ggplot(aes(interval_hour,AverageDelayInHour)) + 
+  geom_line(color=palette1_main,size=0.5)+
+  geom_vline(data = monday, aes(xintercept = interval_hour),linetype = "dashed",size=1)+
+  labs(title = "hazlet station")+
+  plotTheme())
+```
+
+
+```{r illustrate trainID and express line, eval=FALSE}
+## A trainID for a whole trip
+trainIDforWholeTrip = trains%>%
+  filter(train_id == 7824, date == "2019-10-06")%>%
+  arrange(date, train_id)%>%
+  dplyr::select(date,train_id,stop_sequence,from,to,line)
+
+kable(trainIDforWholeTrip,align = 'c',caption = '<center>Table.A trainID for a whole trip</center>')%>%
+  kable_classic(full_width = T)%>%
+  kable_styling(position = "center",font_size = 12)%>%
+  column_spec(2, background = palette1_assist)%>%
+  column_spec(3, background = palette1_main)
+
+## Different TrainIDs within the same day & Express or normal lines
+difTrainIDs = trains%>%
+  filter(line=="Northeast Corrdr",date=="2019-10-06",stop_sequence=="2")%>%
+  arrange(date,train_id)%>%
+  dplyr::select(scheduled_time,train_id,from,to,line)
+difTrainIDs = difTrainIDs[1:5,]
+
+kable(difTrainIDs,align = 'c',caption = '<center>Table.Different TrainIDs within the same day & Express or normal lines')%>%
+  kable_classic(full_width = T)%>%
+  kable_styling(position = "center",font_size = 12)%>%
+  column_spec(2, background = palette1_assist)%>%
+  row_spec(2, background = palette1_main)%>%
+  row_spec(3, background = palette1_main)
+
+## A TrainID is allocated for the specific time slot train everyday or more
+TrainIDforDifDay = trains%>%
+  filter(line=="Northeast Corrdr",train_id==7824,stop_sequence=="2")%>%
+  arrange(date,to)%>%
+  dplyr::select(scheduled_time,train_id,from,to,line)
+TrainIDforDifDay = TrainIDforDifDay[1:5,]
+
+kable(TrainIDforDifDay,align = 'c',caption = '<center>Table.A TrainID is allocated for the specific time slot everyday')%>%
+  kable_classic(full_width = T)%>%
+  kable_styling(position = "center",font_size = 12)%>%
+  column_spec(2, background = palette1_assist)%>%
+  column_spec(1,background = palette1_main)
+```
+
+```{r illustrate trainID and express line, echo=FALSE}
+kable(trainIDforWholeTrip,align = 'c',caption = '<center>Table.A trainID for a whole trip</center>')%>%
+  kable_classic(full_width = T)%>%
+  kable_styling(position = "center",font_size = 12)%>%
+  column_spec(2, background = palette1_assist)%>%
+  column_spec(3, background = palette1_main)
+```
+
+```{r illustrate trainID and express line, echo=FALSE}
+kable(difTrainIDs,align = 'c',caption = '<center>Table.Different TrainIDs within the same day & Express or normal lines</center>')%>%
+  kable_classic(full_width = T)%>%
+  kable_styling(position = "center",font_size = 12)%>%
+  column_spec(2, background = palette1_assist)%>%
+  row_spec(2, background = palette1_main)%>%
+  row_spec(3, background = palette1_main)
+```
+
+```{r illustrate trainID and express line, echo=FALSE}
+kable(TrainIDforDifDay,align = 'c',caption = '<center>Table.A TrainID is allocated for the specific time slot everyday</center>')%>%
+  kable_classic(full_width = T)%>%
+  kable_styling(position = "center",font_size = 12)%>%
+  column_spec(2, background = palette1_assist)%>%
+  column_spec(1,background = palette1_main)
+```
+
+```{r distinguish sublines, eval = FALSE}
+# Distinguish Express and normal lines
+# When stop_sequence == 1, certain possibilities for uptown direction, certain for downtown
+trains = trains%>%
+  filter(from != to)%>%
+  filter(from !="secaucus concourse" & to!="secaucus upper lvl")%>%
+  filter(from !="east orange" & to!="brick church")%>%
+  filter(from !="new york penn station" & to!="maplewood")
+# Why add this chunk?
+
+lineList = unique(trains$line)
+for (k in lineList) {
+  LineTool = trains%>%
+    filter(line==k,stop_sequence=="2")%>%
+    arrange(date,train_id)%>%
+    group_by(from,to,train_id)%>%
+    summarise()
+  listFrom = unique(LineTool$from)
+  listTo = unique(LineTool$to)
+  n = 1
+  for (i in listFrom){
+    for (j in listTo) {
+      EvLine = filter(LineTool,from==i & to==j)
+      listTrainID = unique(EvLine$train_id)
+      if (length(listTrainID>0)){
+        trains = trains%>%mutate(line = case_when(train_id %in% listTrainID ~ paste(line,n, sep = "_subline_"),TRUE ~ line))
+        print(c(n,i,j))
+        n = n+1}}}}
+
+unique(trains$line)
+
+trains_analysis_subline <- as.data.frame(unique(trains_analysis_subline$line))%>%
+  rename("sublineList" = "unique(trains_analysis_subline$line)")%>%
+  arrange(sublineList)
+
+i=1
+a=1
+tableForSublines <- data.frame(matrix(NA,nrow=10))
+tmp1  <- trains_analysis_subline[c(1:3),]
+tmp2  <- trains_analysis_subline[c(4:9),]
+tmp3  <- trains_analysis_subline[c(10:14),]
+tmp4  <- trains_analysis_subline[c(15:19),]
+tmp5  <- trains_analysis_subline[20,]
+tmp6  <- trains_analysis_subline[c(21:27),]
+tmp7  <- trains_analysis_subline[c(28:36),]
+tmp8  <- trains_analysis_subline[c(37:43),]
+tmp9  <- trains_analysis_subline[c(44:50),]
+tmp10  <- trains_analysis_subline[c(51:53),]
+tmp11  <- trains_analysis_subline[c(54:59),]
+length(tmp1) = length(c(1:10))
+length(tmp2) = length(c(1:10))
+length(tmp3) = length(c(1:10))
+length(tmp4) = length(c(1:10))
+length(tmp5) = length(c(1:10))
+length(tmp6) = length(c(1:10))
+length(tmp7) = length(c(1:10))
+length(tmp8) = length(c(1:10))
+length(tmp9) = length(c(1:10))
+length(tmp10) = length(c(1:10))
+length(tmp11) = length(c(1:10))
+tableForSublines <- cbind(tableForSublines, tmp5) 
+tableForSublines <- cbind(tableForSublines, tmp10) 
+tableForSublines <- cbind(tableForSublines, tmp1) 
+tableForSublines <- cbind(tableForSublines, tmp3) 
+tableForSublines <- cbind(tableForSublines, tmp4) 
+tableForSublines <- cbind(tableForSublines, tmp2) 
+tableForSublines <- cbind(tableForSublines, tmp11) 
+tableForSublines <- cbind(tableForSublines, tmp6) 
+tableForSublines <- cbind(tableForSublines, tmp8) 
+tableForSublines <- cbind(tableForSublines, tmp9) 
+tableForSublines <- cbind(tableForSublines, tmp7) 
+
+tableForSublines = tableForSublines[1:9,2:12]
+tableForSublines[is.na(tableForSublines)] = ""
+kable(tableForSublines,align = 'c',caption = '<center>Table.XXX')%>%
+  kable_classic(full_width = T)%>%
+  kable_styling(position = "center",font_size = 12)
+```
+
+```{r}
+# When stop_sequence == 1, certain possibilities for uptown direction, certain for downtown
+
+# trains_analysis_subline = trains%>%
+#   filter(from != to)%>%
+#   filter(from !="secaucus concourse" & to!="secaucus upper lvl")%>%
+#   filter(from !="east orange" & to!="brick church")%>%
+#   filter(from !="new york penn station" & to!="maplewood")
+# 
+# 
+# LineTool = trains_analysis_subline%>%
+#     filter(line=="Northeast Corrdr",stop_sequence=="1")%>%
+#     arrange(date,train_id)%>%
+#     group_by(from,to,train_id)%>%
+#     summarise()
+# listFrom = c("new york penn station")
+# # sum(trains$from == "jefferson")
+# a=unique(trains%>%filter(line=="Northeast Corrdr",stop_sequence=="1")%>%dplyr::select(from))
+# 
+# EvLine = filter(LineTool,from %in% listFrom)
+# listTrainID = unique(EvLine$train_id)
+# trains_analysis_subline = trains_analysis_subline%>%mutate(line = case_when(train_id %in% listTrainID ~ paste(line,"_From",sep = ""),
+#                                                                             TRUE ~line))
+# 
+# unique(trains_analysis_subline$line)
+
+```
+
+```{r delay_lag_2_hours for the specific line, eval = FALSE}
+# Delays on this line two hours prior
+
+# Add a field: time of prediction
+trains = trains %>%
+  mutate(timeOfPrediction = scheduled_time - hours(2))
+
+timeLagBase = 
+  trains %>%
+  dplyr::select(date, line, actual_time, delay_minutes)
+
+findLagDelay = function(timeOfPrediction, line, date){
+  narrowDown = 
+    timeLagBase[timeLagBase$line == line &
+                  timeLagBase$date == date &
+                  difftime(timeOfPrediction,
+                           timeLagBase$actual_time,
+                           units = 'secs') > 0,] %>%
+    arrange(desc(actual_time))
+  return(narrowDown[1, 4])
+}
+
+# Add lag delay data
+for(i in 1:nrow(trains)){
+  date = trains[i, 'date']
+  line = trains[i, 'line']
+  timeOfPrediction = trains[i, 'timeOfPrediction']
+  lagDelay = findLagDelay(timeOfPrediction, line, date)
+  trains[i, 'lagDelay'] = lagDelay
+  if(i %% 1000 == 0){
+    print(i)
+  }
+}
+
+
+# Station-based average delay (2-hour lag)
+```
+
+```{r delay station average 2 hours, eval = FALSE}
+stationAvgDelayBase = trainsWithoutNA %>% 
+  dplyr::select(station = to, actual_time, delay_minutes) %>%
+  mutate(actual_time = ymd_hms(actual_time))
+
+findAvgStationDelay = function(timeOfPrediction, depStation){
+  narrowDown = 
+    stationAvgDelayBase %>%
+    filter(., station == depStation &
+             actual_time %within% interval(
+                            timeOfPrediction - hours(1), timeOfPrediction
+                          ))
+  return(mean(narrowDown$delay_minutes, na.rm = T))
+}
+
+# Add station lag delay data
+# This station
+for(i in 1:nrow(trains)){
+  depStation = trains[i, 'to']
+  timeOfPrediction = trains[i, 'timeOfPrediction']
+  stationDelay = findAvgStationDelay(timeOfPrediction, depStation)
+  trains[i, 'stationDelay'] = stationDelay
+  if(i %% 1000 == 0){
+    print(i)
+  }
+}
+
+```
+
+```{r delay station average 2 hours lag 1 station, eval = FALSE}
+# The last station
+for(i in 1:nrow(trains)){
+  depStation = trains[i, 'from']
+  timeOfPrediction = trains[i, 'timeOfPrediction']
+  lag1StationDelay = findAvgStationDelay(timeOfPrediction, depStation)
+  trains[i, 'lag1StationDelay'] = lag1StationDelay
+  if(i %% 1000 == 0){
+    print(i)
+  }
+}
+```
+
+```{r delay station average 2 hours lag 2 stations, eval = FALSE}
+lastStation = 
+  trainsWithoutNA %>%
+  dplyr::select(date, train = train_id, sequence = stop_sequence, lag2Station = from) %>%
+  mutate(sequencePlus = sequence + 1) %>%
+  dplyr::select(-sequence)
+
+trainsWithoutNA = trains %>% filter(., !is.na(stop_sequence))
+
+trainsTest =
+  left_join(trainsWithoutNA, lastStation, by = c('date' = 'date',
+                                'train_id' = 'train',
+                                'stop_sequence' = 'sequencePlus')) %>%
+  mutate(lag2Station = ifelse(is.na(lag2Station), from, lag2Station))
+
+
+for(i in 1:nrow(trainsTest)){
+  depStation = trainsTest[i, 'lag2Station']
+  timeOfPrediction = trainsTest[i, 'timeOfPrediction']
+  lag2StationDelay = findAvgStationDelay(timeOfPrediction, depStation)
+  trainsTest[i, 'lag2StationDelay'] = lag2StationDelay
+  if(i %% 1000 == 0){
+    print(i)
+  }
+}
+
+write.csv(trainsTest, 'trains.csv')
+
+trains = read.csv('trains.csv') %>% dplyr::select(-X) %>%
+  mutate(timeOfPrediction = ymd_hms(timeOfPrediction),
+         date = ymd(date),
+         scheduled_time = ymd_hms(scheduled_time),
+         actual_time = ymd_hms(actual_time))
+```
+
+```{r weather_stations}
+# Weather
+network = riem_networks()
+weatherStations = riem_stations(network = 'NJ_ASOS') %>%
+  st_as_sf(coords = c('lon', 'lat'), crs = 4326, agr = 'constant') %>%
+  st_transform(crs)
+weatherStations$weatherStationIndex = row.names(weatherStations) %>% as.numeric()
+
+mapview(weatherStations) + mapview(njStations)
+mapview(njStations)
+
+njStations$weatherStationIndex =
+  get.knnx(
+  st_coordinates(weatherStations), 
+  st_coordinates(njStations), 1)$nn.index
+
+# Determine which weather station for which transit station
+njStations = njStations %>%
+  left_join(st_drop_geometry(weatherStations) %>%
+              dplyr::select(weatherStationID = id, weatherStationIndex), 
+            by = 'weatherStationIndex')
+```
+
+```{r join_station_info}
+
+# trains$lagDelay = trains$lagDelay %>%
+#   replace(is.na(.), 0)
+
+trains = trains %>%
+  filter(., to != 'secaucus concourse') %>%
+  left_join(njStations, by = c('to' = 'station')) %>%
+  st_sf() %>%
+  dplyr::select(-joined, -weatherStationIndex)
+
+```
+
+```{r make panel, eval = FALSE}
+# 
+# trainsTimeInterval = 
+#   trains %>%
+#   mutate(timeHour = floor_date(trains3$scheduledTime, unit = 'hour'))
+# 
+# # All the involved stations
+# 
+# stations = trainsTimeInterval %>%
+#   dplyr::select(station = to, geometry) %>%
+#   unique()
+# 
+# # All the involved hour intervals
+# 
+# allIntervals = 
+#   seq(ymd_hms('2019-09-01 00:00:00'), ymd_hms('2019-11-01 02:00:00'), by = 'hour')
+# 
+# # Create empty hour-station panel
+# panel = 
+#   expand.grid(hour = allIntervals,
+#               station = stations$station) %>%
+#   left_join(stations, by = 'station') %>%
+#   st_sf() %>%
+#   mutate(week = week(hour),
+#          dayOfWeek = wday(hour, label = T))
+# 
+# delayAgg = trainsTimeInterval %>%
+#   group_by(timeHour, to) %>%
+#   summarize(avgDelay = mean(delay_minutes))
+# 
+# delayPanel = panel %>%
+#   left_join(st_drop_geometry(delayAgg),
+#             by = c('hour' = 'timeHour',
+#                    'station' = 'to')) %>%
+#   replace(is.na(.), 0)
+# 
+# # Or maybe it should not be a panel after all
+# # But rather from three hours prior to two hours prior
+```
+
+```{r time_fixed_effects}
+
+# Add time fixed effect & Select weeks
+trains2 = trains %>%
+  mutate(hour = hour(scheduled_time),
+         dayOfWeek = wday(scheduled_time),
+         week = week(scheduled_time))
+  # filter(week %in% c(36:43))%>%
+  # mutate(legend = case_when(
+  #   week %in% c(36:41) ~ "train",
+  #   TRUE ~ "test"))
+```
+
+```{r lag_one_day, eval = FALSE}
+# Lag one day
+trains3 = 
+  trains2 %>%
+  group_by(train_id, to) %>%
+  arrange(scheduled_time) %>%
+  mutate(lagDelayDayPlus = lag(delay_minutes, 1)) %>%
+  ungroup() %>%
+  mutate(actualTime = ymd_hms(actual_time),
+         scheduledTime = ymd_hms(scheduled_time),
+         date = ymd(date)) %>%
+  rename(delay = delay_minutes, train = train_id) %>%
+  dplyr::select(-actual_time, -scheduled_time,
+                -to_id, -from_id)%>%
+  filter(week %in% c(37:43))%>%
+  mutate(legend = case_when(
+    week %in% c(37:41) ~ "train",
+    TRUE ~ "test"))
+```
+
+```{r weather_information}
+
+weatherStationList = unique(trains3$weatherStationID)
+
+weather = data.frame()
+for(i in weatherStationList){
+  weatherSeg = riem_measures(station = i, 
+                          date_start = '2019-09-01',
+                          date_end = '2019-10-31') %>%
+    mutate_if(is.character, list(~replace(as.character(.), is.na(.), "0"))) %>%
+    replace(is.na(.), 0) %>%
+    mutate(hour = ymd_h(substr(valid, 1, 13))) %>%
+    mutate(week = week(hour),
+           dayOfWeek = wday(hour, label = T)) %>%
+    group_by(hour) %>%
+    summarize(temp = max(tmpf),
+              precip = sum(p01i),
+              windSpeed = max(sknt)) %>%
+    mutate(temp = ifelse(temp == 0, 42, temp)) %>%
+    mutate(precip = ifelse(precip > 0.2, 'Rain/Snow', 'None')) %>%
+    mutate(weatherStationID = i)
+  weather = rbind(weather, weatherSeg)
+}
+
+```
+
+```{r join_weather}
+# Floor time
+trains3$timeHour = floor_date(trains3$scheduledTime, unit = 'hour')
+
+trains4 = trains3 %>%
+  left_join(weather,
+            by = c('weatherStationID' = 'weatherStationID',
+                   'timeHour' = 'hour'))
+```
+
+```{r distance to first station}
+
+trainIDAndfirstStations = trains4 %>%
+  filter(., stop_sequence == 1) %>%
+  dplyr::select(firstStation = to, train) %>%
+  unique()
+
+firstStations = trainIDAndfirstStations %>%
+  dplyr::select(firstStation) %>%
+  unique()
+
+st_distance(trainIDAndStations[1,], firstStations[1,])
+
+distanceMatrix = 
+  expand.grid(firstStation = firstStations$firstStation,
+              station = stations$station)
+
+for(i in 1:nrow(distanceMatrix)){
+  thisFirstStation = distanceMatrix[i, 1]
+  thisStation = distanceMatrix[i, 2]
+  distance = st_distance(
+    firstStations %>% filter(., firstStation == thisFirstStation),
+    stations %>% filter(., station == thisStation)
+  ) %>% as.numeric()
+  distanceMatrix[i, 'distance'] = distance
+  if(i %% 100 == 0){
+    print(i)
+  }
+}
+
+trainIDAndStations = trains4 %>%
+  dplyr::select(station = to, train) %>%
+  unique() %>%
+  left_join(trainIDAndfirstStations %>% st_drop_geometry,
+            by = 'train') %>%
+  left_join(distanceMatrix, by = c('firstStation' = 'firstStation',
+                                   'station' = 'station'))
+
+trains5 = trains4 %>%
+  left_join(st_drop_geometry(trainIDAndStations) %>%
+              dplyr::select(-firstStation),
+            by = c('to' = 'station',
+                   'train' = 'train')) %>%
+  rename(distFirstStation = distance)
+
+```
+
+
+```{r model prep}
+
+trainsTrain = trains5 %>%
+  filter(., legend == 'train')
+
+stationHourMean = trainsTrain %>%
+  group_by(to, hour) %>%
+  summarize(meanDelay = mean(delay, na.rm = T)) %>%
+  mutate(stationHour10Tile = ntile(meanDelay, 10) %>% as.character()) %>%
+  st_drop_geometry()
+
+trainsTrain = trainsTrain %>%
+  left_join(stationHourMean %>% dplyr::select(-meanDelay),
+            by = c('to' = 'to',
+                   'hour' = 'hour'))
+
+trainsTrain = trainsTrain %>%
+  mutate(lagDelay = tidyr::replace_na(lagDelay, 0),
+         stationDelay = tidyr::replace_na(stationDelay, 0),
+         lag1StationDelay = tidyr::replace_na(lag1StationDelay, 0),
+         lag2StationDelay = tidyr::replace_na(lag2StationDelay, 0),
+         lagDelayDayPlus = tidyr::replace_na(lagDelayDayPlus, 0))
+
+trainsTest = trains5 %>%
+  filter(., legend == 'test') %>%
+  mutate(lagDelay = tidyr::replace_na(lagDelay, 0),
+         stationDelay = tidyr::replace_na(stationDelay, 0),
+         lag1StationDelay = tidyr::replace_na(lag1StationDelay, 0),
+         lag2StationDelay = tidyr::replace_na(lag2StationDelay, 0),
+         lagDelayDayPlus = tidyr::replace_na(lagDelayDayPlus, 0))%>%
+  left_join(stationHourMean %>% dplyr::select(-meanDelay),
+            by = c('to' = 'to',
+                   'hour' = 'hour'))
+```
+
+```{r baseline models}
+# Baseline
+
+reg2h = lm(delay ~ 
+               stop_sequence + to + line + lagDelay + stationDelay +
+               lag1StationDelay + lag2StationDelay + lagDelayDayPlus +
+               hour + dayOfWeek + precip,
+             data = trainsTrain)
+
+reg2hWTile = lm(delay ~ 
+               stop_sequence + to + line + lagDelay + stationDelay +
+               lag1StationDelay + lag2StationDelay + lagDelayDayPlus +
+               hour + dayOfWeek + precip + stationHour10Tile,
+             data = trainsTrain)
+
+reg2hWTileWDist = lm(delay ~ 
+               stop_sequence + to + line + lagDelay + stationDelay +
+               lag1StationDelay + lag2StationDelay + lagDelayDayPlus +
+               hour + dayOfWeek + precip + stationHour10Tile + distFirstStation,
+             data = trainsTrain)
+
+trainsTest = trainsTest %>%
+  mutate(predict2h = predict(reg2h, newdata = trainsTest),
+         absError2h = abs(delay - predict2h))
+
+trainsTest = trainsTest %>%
+  mutate(predict2hWTile = predict(reg2hWTile, newdata = trainsTest),
+         absError2hWTile = abs(delay - predict2hWTile))
+
+trainsTest = trainsTest %>%
+  mutate(predict2hWTileWDist = predict(reg2hWTileWDist, newdata = trainsTest),
+         absError2hWTileWDist = abs(delay - predict2hWTileWDist))
+
+ggplot(trainsTest) +
+  geom_histogram(aes(x = absError2h))
+
+ggplot(trainsTest %>% filter(., delay > 0)) +
+  geom_point(aes(x = delay, y = predict2h))
+
+ggplot(trainsTest3) +
+  geom_point(aes(x = delay, y = predictPoisson))
+```
+
+```{r log model, eval = FALSE}
+# log the dependent (not good)
+
+trainsTrain = trainsTrain %>%
+  mutate(logDelay = log(delay + 1))
+
+reg2hLnLog = lm(logDelay ~ 
+               stop_sequence + to + line + lagDelay + stationDelay +
+               lag1StationDelay + lag2StationDelay + lagDelayDayPlus +
+               hour + dayOfWeek + precip,
+             data = trainsTrain)
+
+trainsTest = trainsTest %>%
+  mutate(logPredict2hLog = predict(reg2hLnLog, newdata = trainsTest),
+         predict2hLog = exp(logPredict2hLog) - 1,
+         absError2hLog = abs(delay - predict2hLog))
+
+ggplot(trainsTest) +
+  geom_point(aes(x = delay, y = predictLnLog))
+```
+
+```{r sq model, eval = FALSE}
+# sq the dependent
+
+trainsTrain = trainsTrain %>%
+  mutate(sqDelay = sqrt(delay))
+
+reg2hLnSq = lm(sqDelay ~ 
+               stop_sequence + to + line + lagDelay + stationDelay +
+               lag1StationDelay + lag2StationDelay + lagDelayDayPlus +
+               hour + dayOfWeek + precip,
+             data = trainsTrain)
+
+reg2hLnSqWTile = lm(sqDelay ~ 
+               stop_sequence + to + line + lagDelay + stationDelay +
+               lag1StationDelay + lag2StationDelay + lagDelayDayPlus +
+               hour + dayOfWeek + precip + stationHour10Tile,
+             data = trainsTrain)
+
+reg2hLnSqWTileWDist = lm(sqDelay ~ 
+               stop_sequence + to + line + lagDelay + stationDelay +
+               lag1StationDelay + lag2StationDelay + lagDelayDayPlus +
+               hour + dayOfWeek + precip + stationHour10Tile + distFirstStation,
+             data = trainsTrain)
+
+summary(reg2hLnSqSqWTile)
+
+trainsTest = trainsTest %>%
+  mutate(sqPredict2hSq = predict(reg2hLnSq, newdata = trainsTest),
+         predict2hSq = sqPredict2hSq ^ 2,
+         absError2hSq = abs(delay - predict2hSq))
+
+trainsTest = trainsTest %>%
+  mutate(sqPredict2hSqWTile = predict(reg2hLnSqWTile, newdata = trainsTest),
+         predict2hSqWTile = sqPredict2hSqWTile ^ 2,
+         absError2hSqWTile = abs(delay - predict2hSqWTile))
+
+trainsTest = trainsTest %>%
+  mutate(sqPredict2hSqWTileWDist = predict(reg2hLnSqWTileWDist, newdata = trainsTest),
+         predict2hSqWTileWDist = sqPredict2hSqWTileWDist ^ 2,
+         absError2hSqWTileWDist = abs(delay - predict2hSqWTileWDist))
+
+ggplot(trainsTest) +
+  geom_point(aes(x = delay, y = predict2hSqWTile))
+
+```
+
+```{r square models both}
+# sq both the dependent and the independent (not good)
+
+ggplot(trainsTrain) +
+  geom_histogram(aes(x = stationDelay))
+
+reg2hLnSqAll = lm(sqDelay ~ 
+                 stop_sequence + to + line + I(sqrt(lagDelay)) + 
+                 I(sqrt(stationDelay)) + I(sqrt(lag1StationDelay)) +
+                 I(sqrt(lag2StationDelay)) + I(sqrt(lagDelayDayPlus)) +
+                 hour + dayOfWeek + precip,
+               data = trainsTrain)
+
+trainsTest = trainsTest %>%
+  mutate(sqPredict2hSqAll = predict(reg2hLnSqAll, newdata = trainsTest),
+         predict2hSqAll = sqPredict2hSqAll ^ 2,
+         absError2hSqAll = abs(delay - predict2hSqAll))
+
+ggplot(trainsTest) +
+  geom_point(aes(x = delay, y = predict2hSqAll))
+```
+
+```{r square models with square independents}
+# sq the dependent, and some independents squared 
+
+ggplot(trainsTrain) +
+  geom_histogram(aes(x = stationDelay))
+
+reg2hLnSqSq = lm(sqDelay ~
+                   stop_sequence + to + line + lagDelay + I(lagDelay ^ 2) + stationDelay +
+                   I(stationDelay ^ 2) + lag1StationDelay + I(lag1StationDelay ^ 2) +
+                   lag2StationDelay + I(lag2StationDelay ^ 2) + lagDelayDayPlus +
+                   I(lagDelayDayPlus) +
+                   hour + dayOfWeek + precip,
+                 data = trainsTrain)
+
+reg2hLnSqSqWTile = lm(sqDelay ~
+                   stop_sequence + to + line + lagDelay + I(lagDelay ^ 2) + stationDelay +
+                   I(stationDelay ^ 2) + lag1StationDelay + I(lag1StationDelay ^ 2) +
+                   lag2StationDelay + I(lag2StationDelay ^ 2) + lagDelayDayPlus +
+                   I(lagDelayDayPlus) +
+                   hour + dayOfWeek + precip + stationHour10Tile,
+                 data = trainsTrain)
+
+reg2hLnSqSqWTileWDist = lm(sqDelay ~
+                   stop_sequence + to + line + lagDelay + I(lagDelay ^ 2) + stationDelay +
+                   I(stationDelay ^ 2) + lag1StationDelay + I(lag1StationDelay ^ 2) +
+                   lag2StationDelay + I(lag2StationDelay ^ 2) + lagDelayDayPlus +
+                   I(lagDelayDayPlus) +
+                   hour + dayOfWeek + precip + stationHour10Tile + distFirstStation,
+                 data = trainsTrain)
+
+trainsTest = trainsTest %>%
+  mutate(sqPredict2hSqSq = predict(reg2hLnSqSq, newdata = trainsTest),
+         predict2hSqSq = sqPredict2hSqSq ^ 2,
+         absError2hSqSq = abs(delay - predict2hSqSq))
+
+trainsTest = trainsTest %>%
+  mutate(sqPredict2hSqSqWTile = predict(reg2hLnSqSqWTile, newdata = trainsTest),
+         predict2hSqSqWTile = sqPredict2hSqSqWTile ^ 2,
+         absError2hSqSqWTile = abs(delay - predict2hSqSqWTile))
+
+trainsTest = trainsTest %>%
+  mutate(sqPredict2hSqSqWTileWDist = predict(reg2hLnSqSqWTileWDist, newdata = trainsTest),
+         predict2hSqSqWTileWDist = sqPredict2hSqSqWTileWDist ^ 2,
+         absError2hSqSqWTileWDist = abs(delay - predict2hSqSqWTileWDist))
+
+ggplot(trainsTest) +
+  geom_point(aes(x = delay, y = predict2h)) +
+  geom_abline(slope = 1, intercept = 0)
+ggplot(trainsTest) +
+  geom_point(aes(x = delay, y = predict2hSqSqWTileWDist)) +
+  geom_abline(slope = 1, intercept = 0)
+
+
+
+mean(trainsTest$absError2h, na.rm = T)
+mean(trainsTest$absError2hWTile, na.rm = T)
+mean(trainsTest$absError2hWTileWDist, na.rm = T)
+
+mean(trainsTest$absError2hSq, na.rm = T)
+mean(trainsTest$absError2hSqWTile, na.rm = T)
+mean(trainsTest$absError2hSqWTileWDist, na.rm = T)
+
+mean(trainsTest$absError2hSqSq, na.rm = T)
+mean(trainsTest$absError2hSqSqWTile, na.rm = T)
+mean(trainsTest$absError2hSqSqWTileWDist, na.rm = T)
+```
+
+```{r late-or-not logit reg, eval = FALSE}
+
+#Not good
+
+ggplot(trainsTrain) +
+  geom_histogram(aes(delay), bins = 50)
+
+trainsTrain = trainsTrain %>%
+  mutate(late = ifelse(delay > 10, 1, 0))
+trainsTest = trainsTest %>%
+  mutate(late = ifelse(delay > 10, 1, 0))
+# table(trainsTrain$late)
+lateOrNot = glm(late ~ 
+                  stop_sequence + to + line + lagDelay + stationDelay +
+                  lag1StationDelay + lag2StationDelay + lagDelayDayPlus +
+                  hour + dayOfWeek + precip + stationHour10Tile + distFirstStation,
+                data = trainsTrain,
+                family="binomial" (link="logit"))
+
+lateProbs = data.frame(
+  outcome = as.factor(trainsTest$late),
+  probs = predict(lateOrNot, trainsTest, type = 'response')
+)
+
+ggplot(lateProbs, aes(x = probs, fill = as.factor(outcome))) +
+  geom_density() +
+  facet_grid(outcome ~.) +
+  scale_fill_manual(values = c(color2, color3)) +
+  xlim(0, 1) +
+  plotTheme()
+  
+```
+
