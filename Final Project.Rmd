@@ -892,6 +892,13 @@ trains6 = trains5 %>%
            ifelse(lastStationDistNYPenn > thisStationDistNYPenn,
                   'downtown', 'uptown'))
 
+trains6 = trains6 %>%
+  mutate(lagDelay = tidyr::replace_na(lagDelay, 0),
+         stationDelay = tidyr::replace_na(stationDelay, 0),
+         lag1StationDelay = tidyr::replace_na(lag1StationDelay, 0),
+         lag2StationDelay = tidyr::replace_na(lag2StationDelay, 0),
+         lagDelayDayPlus = tidyr::replace_na(lagDelayDayPlus, 0))
+
 ```
 
 ```{r model prep}
@@ -910,20 +917,8 @@ trainsTrain = trainsTrain %>%
             by = c('to' = 'to',
                    'hour' = 'hour'))
 
-trainsTrain = trainsTrain %>%
-  mutate(lagDelay = tidyr::replace_na(lagDelay, 0),
-         stationDelay = tidyr::replace_na(stationDelay, 0),
-         lag1StationDelay = tidyr::replace_na(lag1StationDelay, 0),
-         lag2StationDelay = tidyr::replace_na(lag2StationDelay, 0),
-         lagDelayDayPlus = tidyr::replace_na(lagDelayDayPlus, 0))
-
 trainsTest = trains6 %>%
   filter(., legend == 'test') %>%
-  mutate(lagDelay = tidyr::replace_na(lagDelay, 0),
-         stationDelay = tidyr::replace_na(stationDelay, 0),
-         lag1StationDelay = tidyr::replace_na(lag1StationDelay, 0),
-         lag2StationDelay = tidyr::replace_na(lag2StationDelay, 0),
-         lagDelayDayPlus = tidyr::replace_na(lagDelayDayPlus, 0))%>%
   left_join(stationHourMean %>% dplyr::select(-meanDelay),
             by = c('to' = 'to',
                    'hour' = 'hour'))
@@ -1204,7 +1199,7 @@ reg2hLnSqWTileWDirSmall = lm(sqDelay ~
                      lag1StationDelay + 
                    lag2StationDelay + lagDelayDayPlus +
                    hour + dayOfWeek + precip + stationHour10Tile + direction,
-                 data = trainsTrain %>% filter(., delay <= 45))
+                 data = trainsTrain %>% filter(., delay <= 30))
 
 trainsTest = trainsTest %>%
   mutate(sqPredict2hSqWTileWDirSmall = 
@@ -1213,7 +1208,7 @@ trainsTest = trainsTest %>%
 
 trainsTest = trainsTest %>%
   mutate(predict2hSeg = 
-           ifelse(predict2hSqWTileWDir <= 25,
+           ifelse(predict2hSqWTileWDir <= 20,
                   predict2hSqWTileWDirSmall,
                   predict2hSqWTileWDir),
          absError2hSeg = abs(delay - predict2hSeg))
@@ -1221,11 +1216,11 @@ trainsTest = trainsTest %>%
 mean(trainsTest$absError2hSqSq, na.rm = T)
 mean(trainsTest$absError2hSqSqWTile, na.rm = T)
 mean(trainsTest$absError2hSqSqWTileWDist, na.rm = T)
-mean(trainsTest$absError2hSqSqWTileWDir, na.rm = T)
+mean(trainsTest$absError2hSqWTileWDir, na.rm = T)
 mean(trainsTest$absError2hSeg, na.rm = T)
 
-ggplot(trainsTest) +
-  geom_point(aes(x = delay, y = predict2hSeg)) +
+ggplot(trainsTest %>% sample_n(10000)) +
+  geom_point(aes(x = delay, y = predict2hSeg), size = 0.001) +
   geom_abline(slope = 1, intercept = 0)
 ```
 
@@ -1285,16 +1280,13 @@ for(i in 1:nrow(trainsS)){
 }
 
 trainsS = trainsS %>%
-  dplyr::select(-lagDelay, -stationDelay, -lag1StationDelay, -lag2StationDelay) %>%
-  mutate(lagDelayS = tidyr::replace_na(lagDelay, 0),
-         stationDelayS = tidyr::replace_na(stationDelay, 0),
-         lag1StationDelayS = tidyr::replace_na(lag1StationDelay, 0),
-         lag2StationDelayS = tidyr::replace_na(lag2StationDelay, 0),
+  mutate(lagDelayS = tidyr::replace_na(lagDelayS, 0),
+         stationDelayS = tidyr::replace_na(stationDelayS, 0),
+         lag1StationDelayS = tidyr::replace_na(lag1StationDelayS, 0),
+         lag2StationDelayS = tidyr::replace_na(lag2StationDelayS, 0),
          lagDelayDayPlus = tidyr::replace_na(lagDelayDayPlus, 0))
 
-trainsS = trainsS %>% dplyr::select(-timeOfPrediction, -timeOfPredictionS)
 write.csv(trainsS, 'trainsS.csv')
-
 trainsS = read.csv('trainsS.csv')
 
 trainsTrainS = trainsS %>%
@@ -1320,12 +1312,130 @@ reg30mSqWTileWDir = lm(sqDelay ~
                hour + dayOfWeek + precip + stationHour10Tile + direction,
              data = trainsTrainS)
 
-trainsTestS = trainsTestS %>%
-  mutate(sqPredict30mSqWTileWDir = predict(reg30mSqWTileWDir, newdata = trainsTest),
-         predict30mSqWTileWDir = sqPredict30mSqWTileWDir ^ 2,
-         absError30mSqWTileWDir = abs(delay - predict30mSqWTileWDir))
+reg30mSqWTileWDirSmall = lm(sqDelay ~
+                   stop_sequence + to + line + lagDelayS + stationDelayS +
+                     lag1StationDelayS + 
+                   lag2StationDelayS + lagDelayDayPlus +
+                   hour + dayOfWeek + precip + stationHour10Tile + direction,
+                 data = trainsTrainS %>% filter(., delay <= 30))
 
-ggplot(trainsTest) +
-  geom_point(aes(x = delay, y = predict2hSqWTile))
+trainsTestS = trainsTestS %>%
+  mutate(sqPredict30mSqWTileWDir = predict(reg30mSqWTileWDir, newdata = trainsTestS),
+         predict30mSqWTileWDir = sqPredict30mSqWTileWDir ^ 2,
+         absError30mSqWTileWDir = abs(delay - predict30mSqWTileWDir),
+         sqPredict30mSqWTileWDirSmall = predict(reg30mSqWTileWDirSmall,
+                                                newdata = trainsTestS),
+         predict30mSqWTileWDirSmall = sqPredict30mSqWTileWDirSmall ^ 2,
+         predict30mSeg = ifelse(predict30mSqWTileWDir < 20,
+                                predict30mSqWTileWDirSmall,
+                                predict30mSqWTileWDir),
+         absError30mSeg = abs(delay - predict30mSeg))
+
+ggplot(trainsTestS %>% sample_n(10000)) +
+  geom_point(aes(x = delay, y = predict30mSqWTileWDir), size = .001)
+
+ggplot(trainsTestS %>% sample_n(10000)) +
+  geom_point(aes(x = delay, y = predict30mSeg), size = .001)
+
+ggplot(trainsTest %>% sample_n(10000)) +
+  geom_point(aes(x = delay, y = predict2hSqWTileWDirS), size = .001)
 
 ```
+
+```{r cross validation by day}
+
+trainsL = trains6 %>%
+  mutate(sqDelay = sqrt(delay)) %>%
+  left_join(stationHourMean %>% dplyr::select(-meanDelay),
+            by = c('to' = 'to',
+                   'hour' = 'hour'))
+trainsS = trainsS %>%
+  mutate(sqDelay = sqrt(delay)) %>%
+  left_join(stationHourMean %>% dplyr::select(-meanDelay),
+            by = c('to' = 'to',
+                   'hour' = 'hour'))
+dateList = unique(trainsL$date)
+
+MAE2hList = list()
+MAE30mList = list()
+dayNoList = list()
+
+for (dayNo in dateList){
+  gc()
+  
+  dayNoList = append(dayNoList, dayNo)
+  cat('This hold-out test day is', dayNo, '\n')
+  daysTrainL = trainsL %>% filter(., date != dayNo) %>% as.data.frame()
+  daysTestL = trainsL %>% filter(., date == dayNo) %>% as.data.frame()
+  daysTrainS = trainsS %>% filter(., date != dayNo) %>% as.data.frame()
+  daysTestS = trainsS %>% filter(., date == dayNo) %>% as.data.frame()
+  
+  reg2h = lm(sqDelay ~ 
+               stop_sequence + to + line + lagDelay + stationDelay +
+               lag1StationDelay + lag2StationDelay + lagDelayDayPlus +
+               hour + dayOfWeek + precip + stationHour10Tile + direction,
+             data = daysTrainL)
+  reg2hSmall = lm(sqDelay ~ 
+               stop_sequence + to + line + lagDelay + stationDelay +
+               lag1StationDelay + lag2StationDelay + lagDelayDayPlus +
+               hour + dayOfWeek + precip + stationHour10Tile + direction,
+             data = daysTrainL %>% filter(., delay <= 30))
+  
+  reg30m = lm(sqDelay ~ 
+               stop_sequence + to + line + lagDelayS + stationDelayS +
+               lag1StationDelayS + lag2StationDelayS + lagDelayDayPlus +
+               hour + dayOfWeek + precip + stationHour10Tile + direction,
+             data = daysTrainS)
+  
+  reg30mSmall = lm(sqDelay ~ 
+               stop_sequence + to + line + lagDelayS + stationDelayS +
+               lag1StationDelayS + lag2StationDelayS + lagDelayDayPlus +
+               hour + dayOfWeek + precip + stationHour10Tile + direction,
+             data = daysTrainS %>% filter(., delay <= 30))
+
+  testCompareL = data.frame(observation = daysTestL$delay,
+                            sqPrediction = predict(reg2h, newdata = daysTestL),
+                            sqPredictionSmall = 
+                              predict(reg2hSmall, newdata = daysTestL)) %>%
+    mutate(prediction = sqPrediction ^ 2,
+           predictionSmall = sqPredictionSmall ^ 2,
+           prediction = ifelse(
+             prediction < 20,
+             predictionSmall,
+             prediction
+             )) %>%
+    mutate(absError = abs(observation - prediction))
+  
+  testCompareS = data.frame(observation = daysTestS$delay,
+                            sqPrediction = predict(reg30m, newdata = daysTestS),
+                            sqPredictionSmall = 
+                              predict(reg30mSmall, newdata = daysTestS)) %>%
+    mutate(prediction = sqPrediction ^ 2,
+         predictionSmall = sqPredictionSmall ^ 2,
+         prediction = ifelse(
+           prediction < 20,
+           predictionSmall,
+           prediction
+           )) %>%
+    mutate(absError = abs(observation - prediction))
+  
+  MAE2h = mean(testCompareL$absError, na.rm = T)
+  MAE30m = mean(testCompareS$absError, na.rm = T)
+
+  MAE2hList = append(MAE2hList, MAE2h)
+  MAE30mList = append(MAE30mList, MAE30m)
+  
+  cat('The 2h-MAE is', MAE2h, '\n')
+  cat('The 30m-MAE is', MAE30m, '\n')
+  
+}
+
+CVResult = cbind(dayNoList, MAE2hList, MAE30mList)
+
+```
+
+
+```{r abs error for different groups}
+
+```
+
