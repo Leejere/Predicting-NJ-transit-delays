@@ -1284,9 +1284,48 @@ for(i in 1:nrow(trainsS)){
   }
 }
 
+trainsS = trainsS %>%
+  dplyr::select(-lagDelay, -stationDelay, -lag1StationDelay, -lag2StationDelay) %>%
+  mutate(lagDelayS = tidyr::replace_na(lagDelay, 0),
+         stationDelayS = tidyr::replace_na(stationDelay, 0),
+         lag1StationDelayS = tidyr::replace_na(lag1StationDelay, 0),
+         lag2StationDelayS = tidyr::replace_na(lag2StationDelay, 0),
+         lagDelayDayPlus = tidyr::replace_na(lagDelayDayPlus, 0))
+
+trainsS = trainsS %>% dplyr::select(-timeOfPrediction, -timeOfPredictionS)
 write.csv(trainsS, 'trainsS.csv')
-trainsSt = read.csv('trainsS.csv')
+
+trainsS = read.csv('trainsS.csv')
+
+trainsTrainS = trainsS %>%
+  filter(., legend == 'train')
+
+trainsTrainS = trainsTrainS %>%
+  left_join(stationHourMean %>% dplyr::select(-meanDelay),
+            by = c('to' = 'to',
+                   'hour' = 'hour'))
+trainsTestS = trainsS %>%
+  filter(., legend == 'test') %>%
+  left_join(stationHourMean %>% dplyr::select(-meanDelay),
+            by = c('to' = 'to',
+                   'hour' = 'hour'))
 
 
+trainsTrainS = trainsTrainS %>%
+  mutate(sqDelay = sqrt(delay))
+
+reg30mSqWTileWDir = lm(sqDelay ~ 
+               stop_sequence + to + line + lagDelayS + stationDelayS +
+               lag1StationDelayS + lag2StationDelayS + lagDelayDayPlus +
+               hour + dayOfWeek + precip + stationHour10Tile + direction,
+             data = trainsTrainS)
+
+trainsTestS = trainsTestS %>%
+  mutate(sqPredict30mSqWTileWDir = predict(reg30mSqWTileWDir, newdata = trainsTest),
+         predict30mSqWTileWDir = sqPredict30mSqWTileWDir ^ 2,
+         absError30mSqWTileWDir = abs(delay - predict30mSqWTileWDir))
+
+ggplot(trainsTest) +
+  geom_point(aes(x = delay, y = predict2hSqWTile))
 
 ```
