@@ -817,122 +817,318 @@ trains4 = trains3 %>%
                    'timeHour' = 'hour'))
 ```
 
+```{r distance to first station}
 
-```{r first model}
+trainIDAndfirstStations = trains4 %>%
+  filter(., stop_sequence == 1) %>%
+  dplyr::select(firstStation = to, train) %>%
+  unique()
 
-trainsTrain = trains4 %>%
+firstStations = trainIDAndfirstStations %>%
+  dplyr::select(firstStation) %>%
+  unique()
+
+st_distance(trainIDAndStations[1,], firstStations[1,])
+
+distanceMatrix = 
+  expand.grid(firstStation = firstStations$firstStation,
+              station = stations$station)
+
+for(i in 1:nrow(distanceMatrix)){
+  thisFirstStation = distanceMatrix[i, 1]
+  thisStation = distanceMatrix[i, 2]
+  distance = st_distance(
+    firstStations %>% filter(., firstStation == thisFirstStation),
+    stations %>% filter(., station == thisStation)
+  ) %>% as.numeric()
+  distanceMatrix[i, 'distance'] = distance
+  if(i %% 100 == 0){
+    print(i)
+  }
+}
+
+trainIDAndStations = trains4 %>%
+  dplyr::select(station = to, train) %>%
+  unique() %>%
+  left_join(trainIDAndfirstStations %>% st_drop_geometry,
+            by = 'train') %>%
+  left_join(distanceMatrix, by = c('firstStation' = 'firstStation',
+                                   'station' = 'station'))
+
+trains5 = trains4 %>%
+  left_join(st_drop_geometry(trainIDAndStations) %>%
+              dplyr::select(-firstStation),
+            by = c('to' = 'station',
+                   'train' = 'train')) %>%
+  rename(distFirstStation = distance)
+
+```
+
+
+```{r model prep}
+
+trainsTrain = trains5 %>%
   filter(., legend == 'train')
 
-cbind(lapply(lapply(trainsTrain, is.na), sum))
+stationHourMean = trainsTrain %>%
+  group_by(to, hour) %>%
+  summarize(meanDelay = mean(delay, na.rm = T)) %>%
+  mutate(stationHour10Tile = ntile(meanDelay, 10) %>% as.character()) %>%
+  st_drop_geometry()
 
-trainsTrain2 = trainsTrain %>%
+trainsTrain = trainsTrain %>%
+  left_join(stationHourMean %>% dplyr::select(-meanDelay),
+            by = c('to' = 'to',
+                   'hour' = 'hour'))
+
+trainsTrain = trainsTrain %>%
   mutate(lagDelay = tidyr::replace_na(lagDelay, 0),
          stationDelay = tidyr::replace_na(stationDelay, 0),
          lag1StationDelay = tidyr::replace_na(lag1StationDelay, 0),
          lag2StationDelay = tidyr::replace_na(lag2StationDelay, 0),
-         lagDelayDayPlus = tidyr::replace_na(lagDelayDayPlus, 0),
-         delay = round(delay * 60, 0))
+         lagDelayDayPlus = tidyr::replace_na(lagDelayDayPlus, 0))
 
-trainsTrain3 = trainsTrain %>%
+trainsTest = trains5 %>%
+  filter(., legend == 'test') %>%
   mutate(lagDelay = tidyr::replace_na(lagDelay, 0),
          stationDelay = tidyr::replace_na(stationDelay, 0),
          lag1StationDelay = tidyr::replace_na(lag1StationDelay, 0),
          lag2StationDelay = tidyr::replace_na(lag2StationDelay, 0),
-         lagDelayDayPlus = tidyr::replace_na(lagDelayDayPlus, 0),
-         delay = round(delay, 0))
+         lagDelayDayPlus = tidyr::replace_na(lagDelayDayPlus, 0))%>%
+  left_join(stationHourMean %>% dplyr::select(-meanDelay),
+            by = c('to' = 'to',
+                   'hour' = 'hour'))
+```
 
-trainsTest = trains4 %>%
-  filter(., legend == 'test')
+```{r baseline models}
+# Baseline
 
-
-trainsTest2 = trainsTest %>%
-  mutate(lagDelay = tidyr::replace_na(lagDelay, 0),
-         stationDelay = tidyr::replace_na(stationDelay, 0),
-         lag1StationDelay = tidyr::replace_na(lag1StationDelay, 0),
-         lag2StationDelay = tidyr::replace_na(lag2StationDelay, 0),
-         lagDelayDayPlus = tidyr::replace_na(lagDelayDayPlus, 0),
-         delay = round(delay * 60, 0))
-
-trainsTest3 = trainsTest %>%
-  mutate(lagDelay = tidyr::replace_na(lagDelay, 0),
-         stationDelay = tidyr::replace_na(stationDelay, 0),
-         lag1StationDelay = tidyr::replace_na(lag1StationDelay, 0),
-         lag2StationDelay = tidyr::replace_na(lag2StationDelay, 0),
-         lagDelayDayPlus = tidyr::replace_na(lagDelayDayPlus, 0),
-         delay = round(delay, 0))
-
-reg2hLn = lm(delay ~ 
+reg2h = lm(delay ~ 
                stop_sequence + to + line + lagDelay + stationDelay +
                lag1StationDelay + lag2StationDelay + lagDelayDayPlus +
                hour + dayOfWeek + precip,
-             data = trainsTrain2)
+             data = trainsTrain)
 
-summary(reg2hLn)
+reg2hWTile = lm(delay ~ 
+               stop_sequence + to + line + lagDelay + stationDelay +
+               lag1StationDelay + lag2StationDelay + lagDelayDayPlus +
+               hour + dayOfWeek + precip + stationHour10Tile,
+             data = trainsTrain)
 
-reg2hPoisson = glm(delay ~ 
-                     stop_sequence + to + line + lagDelay + stationDelay +
-                     lag1StationDelay + lag2StationDelay + lagDelayDayPlus +
-                     hour + dayOfWeek + precip, family = 'poisson',
-                   data = trainsTrain3)
+reg2hWTileWDist = lm(delay ~ 
+               stop_sequence + to + line + lagDelay + stationDelay +
+               lag1StationDelay + lag2StationDelay + lagDelayDayPlus +
+               hour + dayOfWeek + precip + stationHour10Tile + distFirstStation,
+             data = trainsTrain)
 
-summary(reg2hPoisson)
+trainsTest = trainsTest %>%
+  mutate(predict2h = predict(reg2h, newdata = trainsTest),
+         absError2h = abs(delay - predict2h))
 
-print(c(AIC(reg2hLn), AIC(reg2hPoisson)))
+trainsTest = trainsTest %>%
+  mutate(predict2hWTile = predict(reg2hWTile, newdata = trainsTest),
+         absError2hWTile = abs(delay - predict2hWTile))
 
-trainsTest2 = trainsTest2 %>%
-  mutate(predictLn = predict(reg2hLn, newdata = trainsTest2),
-         absErrorLn = abs(delay - predictLn),
-         absPctErrorLn = absErrorLn / delay)
+trainsTest = trainsTest %>%
+  mutate(predict2hWTileWDist = predict(reg2hWTileWDist, newdata = trainsTest),
+         absError2hWTileWDist = abs(delay - predict2hWTileWDist))
 
-trainsTest3 = trainsTest3 %>%
-  mutate(predictPoisson = predict(reg2hPoisson, newdata = trainsTest2),
-         absErrorPoisson = abs(delay - predictPoisson),
-         absPctErrorPoisson = absErrorPoisson / delay)
+ggplot(trainsTest) +
+  geom_histogram(aes(x = absError2h))
 
-print(c(mean((trainsTest2 %>%
-                filter(., delay > 1200))$absPctErrorLn, na.rm = T), 
-        mean((trainsTest3 %>%
-                filter(., delay > 20))$absPctErrorPoisson, na.rm = T),
-        mean((trainsTest2 %>%
-                filter(., delay > 1200))$absErrorLn, na.rm = T), 
-        mean((trainsTest3 %>%
-                filter(., delay > 20))$absErrorPoisson, na.rm = T)))
-
-ggplot(trainsTest2) +
-  geom_histogram(aes(x = absErrorLn))
-
-ggplot(trainsTest2) +
-  geom_histogram(aes(x = absErrorPoisson))
-
-ggplot(trainsTest2 %>% filter(., delay > 1200)) +
-  geom_point(aes(x = delay, y = predictLn))
+ggplot(trainsTest %>% filter(., delay > 0)) +
+  geom_point(aes(x = delay, y = predict2h))
 
 ggplot(trainsTest3) +
   geom_point(aes(x = delay, y = predictPoisson))
+```
 
+```{r log model, eval = FALSE}
+# log the dependent (not good)
 
-
-# log
-
-trainsTrain4 = trainsTrain3 %>%
+trainsTrain = trainsTrain %>%
   mutate(logDelay = log(delay + 1))
 
 reg2hLnLog = lm(logDelay ~ 
                stop_sequence + to + line + lagDelay + stationDelay +
                lag1StationDelay + lag2StationDelay + lagDelayDayPlus +
                hour + dayOfWeek + precip,
-             data = trainsTrain4)
+             data = trainsTrain)
 
-trainsTest4 = trainsTest3 %>%
-  mutate(predictLnLogRaw = predict(reg2hLnLog, newdata = trainsTest3),
-         predictLnLog = exp(predictLnLogRaw) - 1,
-         absErrorLnLog = abs(delay - predictLnLog),
-         absPctErrorLnLog = absErrorLnLog / delay)
+trainsTest = trainsTest %>%
+  mutate(logPredict2hLog = predict(reg2hLnLog, newdata = trainsTest),
+         predict2hLog = exp(logPredict2hLog) - 1,
+         absError2hLog = abs(delay - predict2hLog))
 
-ggplot(trainsTest4) +
+ggplot(trainsTest) +
   geom_point(aes(x = delay, y = predictLnLog))
-
-train
 ```
 
-And the delay causes.
+```{r sq model, eval = FALSE}
+# sq the dependent
+
+trainsTrain = trainsTrain %>%
+  mutate(sqDelay = sqrt(delay))
+
+reg2hLnSq = lm(sqDelay ~ 
+               stop_sequence + to + line + lagDelay + stationDelay +
+               lag1StationDelay + lag2StationDelay + lagDelayDayPlus +
+               hour + dayOfWeek + precip,
+             data = trainsTrain)
+
+reg2hLnSqWTile = lm(sqDelay ~ 
+               stop_sequence + to + line + lagDelay + stationDelay +
+               lag1StationDelay + lag2StationDelay + lagDelayDayPlus +
+               hour + dayOfWeek + precip + stationHour10Tile,
+             data = trainsTrain)
+
+reg2hLnSqWTileWDist = lm(sqDelay ~ 
+               stop_sequence + to + line + lagDelay + stationDelay +
+               lag1StationDelay + lag2StationDelay + lagDelayDayPlus +
+               hour + dayOfWeek + precip + stationHour10Tile + distFirstStation,
+             data = trainsTrain)
+
+summary(reg2hLnSqSqWTile)
+
+trainsTest = trainsTest %>%
+  mutate(sqPredict2hSq = predict(reg2hLnSq, newdata = trainsTest),
+         predict2hSq = sqPredict2hSq ^ 2,
+         absError2hSq = abs(delay - predict2hSq))
+
+trainsTest = trainsTest %>%
+  mutate(sqPredict2hSqWTile = predict(reg2hLnSqWTile, newdata = trainsTest),
+         predict2hSqWTile = sqPredict2hSqWTile ^ 2,
+         absError2hSqWTile = abs(delay - predict2hSqWTile))
+
+trainsTest = trainsTest %>%
+  mutate(sqPredict2hSqWTileWDist = predict(reg2hLnSqWTileWDist, newdata = trainsTest),
+         predict2hSqWTileWDist = sqPredict2hSqWTileWDist ^ 2,
+         absError2hSqWTileWDist = abs(delay - predict2hSqWTileWDist))
+
+ggplot(trainsTest) +
+  geom_point(aes(x = delay, y = predict2hSqWTile))
+
+```
+
+```{r square models both}
+# sq both the dependent and the independent (not good)
+
+ggplot(trainsTrain) +
+  geom_histogram(aes(x = stationDelay))
+
+reg2hLnSqAll = lm(sqDelay ~ 
+                 stop_sequence + to + line + I(sqrt(lagDelay)) + 
+                 I(sqrt(stationDelay)) + I(sqrt(lag1StationDelay)) +
+                 I(sqrt(lag2StationDelay)) + I(sqrt(lagDelayDayPlus)) +
+                 hour + dayOfWeek + precip,
+               data = trainsTrain)
+
+trainsTest = trainsTest %>%
+  mutate(sqPredict2hSqAll = predict(reg2hLnSqAll, newdata = trainsTest),
+         predict2hSqAll = sqPredict2hSqAll ^ 2,
+         absError2hSqAll = abs(delay - predict2hSqAll))
+
+ggplot(trainsTest) +
+  geom_point(aes(x = delay, y = predict2hSqAll))
+```
+
+```{r square models with square independents}
+# sq the dependent, and some independents squared 
+
+ggplot(trainsTrain) +
+  geom_histogram(aes(x = stationDelay))
+
+reg2hLnSqSq = lm(sqDelay ~
+                   stop_sequence + to + line + lagDelay + I(lagDelay ^ 2) + stationDelay +
+                   I(stationDelay ^ 2) + lag1StationDelay + I(lag1StationDelay ^ 2) +
+                   lag2StationDelay + I(lag2StationDelay ^ 2) + lagDelayDayPlus +
+                   I(lagDelayDayPlus) +
+                   hour + dayOfWeek + precip,
+                 data = trainsTrain)
+
+reg2hLnSqSqWTile = lm(sqDelay ~
+                   stop_sequence + to + line + lagDelay + I(lagDelay ^ 2) + stationDelay +
+                   I(stationDelay ^ 2) + lag1StationDelay + I(lag1StationDelay ^ 2) +
+                   lag2StationDelay + I(lag2StationDelay ^ 2) + lagDelayDayPlus +
+                   I(lagDelayDayPlus) +
+                   hour + dayOfWeek + precip + stationHour10Tile,
+                 data = trainsTrain)
+
+reg2hLnSqSqWTileWDist = lm(sqDelay ~
+                   stop_sequence + to + line + lagDelay + I(lagDelay ^ 2) + stationDelay +
+                   I(stationDelay ^ 2) + lag1StationDelay + I(lag1StationDelay ^ 2) +
+                   lag2StationDelay + I(lag2StationDelay ^ 2) + lagDelayDayPlus +
+                   I(lagDelayDayPlus) +
+                   hour + dayOfWeek + precip + stationHour10Tile + distFirstStation,
+                 data = trainsTrain)
+
+trainsTest = trainsTest %>%
+  mutate(sqPredict2hSqSq = predict(reg2hLnSqSq, newdata = trainsTest),
+         predict2hSqSq = sqPredict2hSqSq ^ 2,
+         absError2hSqSq = abs(delay - predict2hSqSq))
+
+trainsTest = trainsTest %>%
+  mutate(sqPredict2hSqSqWTile = predict(reg2hLnSqSqWTile, newdata = trainsTest),
+         predict2hSqSqWTile = sqPredict2hSqSqWTile ^ 2,
+         absError2hSqSqWTile = abs(delay - predict2hSqSqWTile))
+
+trainsTest = trainsTest %>%
+  mutate(sqPredict2hSqSqWTileWDist = predict(reg2hLnSqSqWTileWDist, newdata = trainsTest),
+         predict2hSqSqWTileWDist = sqPredict2hSqSqWTileWDist ^ 2,
+         absError2hSqSqWTileWDist = abs(delay - predict2hSqSqWTileWDist))
+
+ggplot(trainsTest) +
+  geom_point(aes(x = delay, y = predict2h)) +
+  geom_abline(slope = 1, intercept = 0)
+ggplot(trainsTest) +
+  geom_point(aes(x = delay, y = predict2hSqSqWTileWDist)) +
+  geom_abline(slope = 1, intercept = 0)
+
+
+
+mean(trainsTest$absError2h, na.rm = T)
+mean(trainsTest$absError2hWTile, na.rm = T)
+mean(trainsTest$absError2hWTileWDist, na.rm = T)
+
+mean(trainsTest$absError2hSq, na.rm = T)
+mean(trainsTest$absError2hSqWTile, na.rm = T)
+mean(trainsTest$absError2hSqWTileWDist, na.rm = T)
+
+mean(trainsTest$absError2hSqSq, na.rm = T)
+mean(trainsTest$absError2hSqSqWTile, na.rm = T)
+mean(trainsTest$absError2hSqSqWTileWDist, na.rm = T)
+```
+
+```{r late-or-not logit reg, eval = FALSE}
+
+#Not good
+
+ggplot(trainsTrain) +
+  geom_histogram(aes(delay), bins = 50)
+
+trainsTrain = trainsTrain %>%
+  mutate(late = ifelse(delay > 10, 1, 0))
+trainsTest = trainsTest %>%
+  mutate(late = ifelse(delay > 10, 1, 0))
+# table(trainsTrain$late)
+lateOrNot = glm(late ~ 
+                  stop_sequence + to + line + lagDelay + stationDelay +
+                  lag1StationDelay + lag2StationDelay + lagDelayDayPlus +
+                  hour + dayOfWeek + precip + stationHour10Tile + distFirstStation,
+                data = trainsTrain,
+                family="binomial" (link="logit"))
+
+lateProbs = data.frame(
+  outcome = as.factor(trainsTest$late),
+  probs = predict(lateOrNot, trainsTest, type = 'response')
+)
+
+ggplot(lateProbs, aes(x = probs, fill = as.factor(outcome))) +
+  geom_density() +
+  facet_grid(outcome ~.) +
+  scale_fill_manual(values = c(color2, color3)) +
+  xlim(0, 1) +
+  plotTheme()
+  
+```
+
