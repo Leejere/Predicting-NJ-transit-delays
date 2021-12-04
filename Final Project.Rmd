@@ -83,7 +83,7 @@ st_transform(dat, proj4)
 root.dir = "https://raw.githubusercontent.com/urbanSpatial/Public-Policy-Analytics-Landing/master/DATA/"
 source("https://raw.githubusercontent.com/urbanSpatial/Public-Policy-Analytics-Landing/master/functions.r")
 
-windowsFonts(font = windowsFont('Open Sans'))
+windowsFonts(font = windowsFont('Helvatica'))
 plotTheme <- function(base_size = 9, title_size = 10){
   theme(
     text = element_text(family = 'font', color = "black"),
@@ -897,7 +897,9 @@ trains6 = trains6 %>%
          stationDelay = tidyr::replace_na(stationDelay, 0),
          lag1StationDelay = tidyr::replace_na(lag1StationDelay, 0),
          lag2StationDelay = tidyr::replace_na(lag2StationDelay, 0),
-         lagDelayDayPlus = tidyr::replace_na(lagDelayDayPlus, 0))
+         lagDelayDayPlus = tidyr::replace_na(lagDelayDayPlus, 0),
+         dayOfWeek = as.character(dayOfWeek),
+         hour = as.character(hour))
 
 ```
 
@@ -910,7 +912,8 @@ stationHourMean = trainsTrain %>%
   group_by(to, hour) %>%
   summarize(meanDelay = mean(delay, na.rm = T)) %>%
   mutate(stationHour10Tile = ntile(meanDelay, 10) %>% as.character()) %>%
-  st_drop_geometry()
+  st_drop_geometry() %>%
+  mutate(hour = as.character(hour))
 
 trainsTrain = trainsTrain %>%
   left_join(stationHourMean %>% dplyr::select(-meanDelay),
@@ -967,14 +970,6 @@ trainsTest = trainsTest %>%
   mutate(predict2hWTileWDir = predict(reg2hWTileWDir, newdata = trainsTest),
          absError2hWTileWDir = abs(delay - predict2hWTileWDir))
 
-ggplot(trainsTest) +
-  geom_histogram(aes(x = absError2h))
-
-ggplot(trainsTest %>% filter(., delay > 0)) +
-  geom_point(aes(x = delay, y = predict2h))
-
-ggplot(trainsTest3) +
-  geom_point(aes(x = delay, y = predictPoisson))
 ```
 
 ```{r log model, eval = FALSE}
@@ -1287,7 +1282,10 @@ trainsS = trainsS %>%
          lagDelayDayPlus = tidyr::replace_na(lagDelayDayPlus, 0))
 
 write.csv(trainsS, 'trainsS.csv')
-trainsS = read.csv('trainsS.csv')
+trainsS = read.csv('trainsS.csv') %>%
+  mutate(hour = as.character(hour),
+         dayOfWeek = as.character(dayOfWeek),
+         date = ymd(date))
 
 trainsTrainS = trainsS %>%
   filter(., legend == 'train')
@@ -1340,9 +1338,11 @@ ggplot(trainsTestS %>% sample_n(10000)) +
 ggplot(trainsTest %>% sample_n(10000)) +
   geom_point(aes(x = delay, y = predict2hSqWTileWDirS), size = .001)
 
+mean()
+
 ```
 
-```{r cross validation by day}
+```{r cross validation by day, fig.height = 3}
 
 trainsL = trains6 %>%
   mutate(sqDelay = sqrt(delay)) %>%
@@ -1359,7 +1359,6 @@ dateList = unique(trainsL$date)
 MAE2hList = list()
 MAE30mList = list()
 dayNoList = list()
-
 for (dayNo in dateList){
   gc()
   
@@ -1430,12 +1429,71 @@ for (dayNo in dateList){
   
 }
 
-CVResult = cbind(dayNoList, MAE2hList, MAE30mList)
+CVResult = cbind(MAE2hList, MAE30mList) %>%
+  as.data.frame() %>%
+  mutate(MAE2h = MAE2hList %>% as.numeric(),
+         MAE30m = MAE30mList %>% as.numeric()) %>%
+  dplyr::select(-MAE2hList, -MAE30mList) %>%
+  cbind(dateList) %>%
+  as.data.frame() %>%
+  rename(date = dateList)
+
+
+CVResult %>%
+  gather(Model, MAE, -date) %>%
+  ggplot(aes(date, MAE, color = Model)) +
+  geom_point() +
+  geom_line() +
+  labs(title = 'MAE for each day as test set',
+       x = 'Day', y = 'MAE') +
+  plotTheme()
 
 ```
 
 
-```{r abs error for different groups}
+```{r final table for comparisons}
+trainsTest = trainsTest %>%
+  mutate(predict2hSeg = 
+           ifelse(predict2hSqWTileWDir <= 20,
+                  predict2hSqWTileWDirSmall,
+                  predict2hSqWTileWDir),
+         absError2hSeg = abs(delay - predict2hSeg))
+
+finalComparison = cbind(
+  trainsTest %>%
+    mutate(obs= delay,
+           predLong = predict2hSeg,
+           absErrLong = absError2hSeg,
+           ) %>%
+    dplyr::select(date, train, station = to, line, GEOID,
+                  week, hour, dayOfWeek, obs, predLong, absErrLong),
+  trainsTestS %>%
+    mutate(predShort = predict30mSeg,
+           absErrShort = absError30mSeg)  %>%
+    dplyr::select(predShort, absErrShort)
+) %>%
+  left_join(counties %>% st_drop_geometry(), by = 'GEOID') %>%
+  rename(county = NAMELSAD) %>%
+  dplyr::select(-GEOID)
+  
+```
+
+```{r MAE by station by week}
+finalComparison %>%
+  group_by(station, week) %>%
+  summarize(MAE2h = mean(absErrLong, na.rm = T),
+            MAE30m = mean(absErrShort, na.rm = T)) %>%
+  gather(Model, MAE, -station, -week, -geometry)
+```
+
+```{r MAE by station by day of week}
 
 ```
 
+```{r MAE by line}
+
+```
+
+```{r MAE by county}
+
+```
