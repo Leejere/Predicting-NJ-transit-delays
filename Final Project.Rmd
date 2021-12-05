@@ -139,6 +139,7 @@ mapTheme <- function(base_size = 9, title_size = 10){
 }
 
 brightRed = '#f2727f'
+lightRed = '#F9B294'
 darkBlue = '#315d7f'
 palette5 <- c("#f9b294","#f2727f","#c06c86","#6d5c7e","#315d7f")
 palette4 <- c("#f9b294","#f2727f","#c06c86","#6d5c7e")
@@ -905,6 +906,8 @@ trains6 = trains6 %>%
 
 ```{r model prep}
 
+st_write(trains6, 'trains6.GeoJson')
+
 trainsTrain = trains6 %>%
   filter(., legend == 'train')
 
@@ -927,7 +930,7 @@ trainsTest = trains6 %>%
                    'hour' = 'hour'))
 ```
 
-```{r baseline models}
+```{r baseline models, fig.height = 9, fig.width = 5}
 # Baseline
 
 reg2h = lm(delay ~ 
@@ -946,6 +949,12 @@ reg2hWTileWDist = lm(delay ~
                stop_sequence + to + line + lagDelay + stationDelay +
                lag1StationDelay + lag2StationDelay + lagDelayDayPlus +
                hour + dayOfWeek + precip + stationHour10Tile + distFirstStation,
+             data = trainsTrain)
+
+reg2hWDir = lm(delay ~ 
+               stop_sequence + to + line + lagDelay + stationDelay +
+               lag1StationDelay + lag2StationDelay + lagDelayDayPlus +
+               hour + dayOfWeek + precip + direction,
              data = trainsTrain)
 
 reg2hWTileWDir = lm(delay ~ 
@@ -970,27 +979,55 @@ trainsTest = trainsTest %>%
   mutate(predict2hWTileWDir = predict(reg2hWTileWDir, newdata = trainsTest),
          absError2hWTileWDir = abs(delay - predict2hWTileWDir))
 
+trainsTest = trainsTest %>%
+  mutate(predict2hWDir = predict(reg2hWDir, newdata = trainsTest),
+         absError2hWDir = abs(delay - predict2hWDir))
+
+ggplot(trainsTest %>% sample_n(10000)) +
+  geom_point(aes(x = delay, y = predict2hWDir), color = brightRed) +
+  geom_abline(slope = 1, intercept = 0, color = "gray", size = 1) +
+  labs(x = "Actual delay (min)", y = "Predicted delay (min)") +
+  presentPlotTheme() +
+  theme(axis.title.y = element_text(vjust=2))
+
+mean(trainsTest$absError2hWDir, na.rm = T)
+
+ggplot(trains6) +
+  geom_histogram(aes(delay), fill = brightRed, bins = 100)+
+  presentPlotTheme() +
+  labs(x = "Delay", y = "Count") +
+  theme(axis.text.y = element_blank())
 ```
 
-```{r log model, eval = FALSE}
+```{r log model, eval = FALSE, fig.height = 9, fig.width = 9}
 # log the dependent (not good)
 
 trainsTrain = trainsTrain %>%
   mutate(logDelay = log(delay + 1))
 
-reg2hLnLog = lm(logDelay ~ 
+reg2hLogWTileWDir = lm(logDelay ~ 
                stop_sequence + to + line + lagDelay + stationDelay +
                lag1StationDelay + lag2StationDelay + lagDelayDayPlus +
-               hour + dayOfWeek + precip,
+               hour + dayOfWeek + precip + direction + stationHour10Tile,
              data = trainsTrain)
 
 trainsTest = trainsTest %>%
-  mutate(logPredict2hLog = predict(reg2hLnLog, newdata = trainsTest),
-         predict2hLog = exp(logPredict2hLog) - 1,
-         absError2hLog = abs(delay - predict2hLog))
+  mutate(logPredictLogWTileWDir = predict(reg2hLogWTileWDir, newdata = trainsTest),
+         predict2hLogWTileWDir = exp(logPredictLogWTileWDir) - 1,
+         absError2hLogWTileWDir = abs(delay - predict2hLogWTileWDir))
 
 ggplot(trainsTest) +
-  geom_point(aes(x = delay, y = predictLnLog))
+  geom_point(aes(x = delay, y = predict2hLogWTileWDir))
+
+ggplot(trainsTest %>% sample_n(10000)) +
+  geom_point(aes(x = delay, y = predict2hLogWTileWDir), color = brightRed,
+             size = 2) +
+  geom_abline(slope = 1, intercept = 0, color = "gray", size = 1) +
+  labs(x = "Actual delay (min)", y = "Predicted delay (min)") +
+  presentPlotTheme() +
+  theme(axis.title.y = element_text(vjust=2))
+
+mean(trainsTest$absError2hSqWTileWDir, na.rm = T)
 ```
 
 ```{r sq model}
@@ -1310,12 +1347,24 @@ reg30mSqWTileWDir = lm(sqDelay ~
                hour + dayOfWeek + precip + stationHour10Tile + direction,
              data = trainsTrainS)
 
+reg30mWDir = lm(delay ~ 
+               stop_sequence + to + line + lagDelayS + stationDelayS +
+               lag1StationDelayS + lag2StationDelayS + lagDelayDayPlus +
+               hour + dayOfWeek + precip + direction,
+             data = trainsTrainS)
+
 reg30mSqWTileWDirSmall = lm(sqDelay ~
                    stop_sequence + to + line + lagDelayS + stationDelayS +
                      lag1StationDelayS + 
                    lag2StationDelayS + lagDelayDayPlus +
                    hour + dayOfWeek + precip + stationHour10Tile + direction,
                  data = trainsTrainS %>% filter(., delay <= 30))
+
+trainsTestS = trainsTestS %>%
+  mutate(predict30mWDir = predict(reg30mWDir, newdata = trainsTestS),
+         absError30mWDir = abs(delay - predict30mWDir))
+
+mean(trainsTestS$absError30mWDir, na.rm = T)
 
 trainsTestS = trainsTestS %>%
   mutate(sqPredict30mSqWTileWDir = predict(reg30mSqWTileWDir, newdata = trainsTestS),
@@ -1338,11 +1387,12 @@ ggplot(trainsTestS %>% sample_n(10000)) +
 ggplot(trainsTest %>% sample_n(10000)) +
   geom_point(aes(x = delay, y = predict2hSqWTileWDirS), size = .001)
 
-mean()
+
+  
 
 ```
 
-```{r cross validation by day, fig.height = 3}
+```{r cross validation by day, fig.height = 9}
 
 trainsL = trains6 %>%
   mutate(sqDelay = sqrt(delay)) %>%
@@ -1440,16 +1490,18 @@ CVResult = cbind(MAE2hList, MAE30mList) %>%
 
 
 CVResult %>%
-  gather(Model, MAE, -date) %>%
-  ggplot(aes(date, MAE, color = Model)) +
-  geom_point() +
+  gather(model, MAE, -date) %>%
+  mutate(model = recode(model, 
+                        'MAE2h' = '2 hours ahead',
+                        'MAE30m' = '30 minutes ahead')) %>%
+  ggplot(aes(date, MAE)) +
+  geom_point(aes(shape = model), size = 2) +
+  scale_shape_manual(values = c(2, 17), name = '') +
   geom_line() +
-  labs(title = 'MAE for each day as test set',
-       x = 'Day', y = 'MAE') +
-  plotTheme()
+  labs(x = 'Day', y = 'MAE') +
+  presentPlotTheme()
 
 ```
-
 
 ```{r final table for comparisons}
 trainsTest = trainsTest %>%
@@ -1473,8 +1525,7 @@ finalComparison = cbind(
     dplyr::select(predShort, absErrShort)
 ) %>%
   left_join(counties %>% st_drop_geometry(), by = 'GEOID') %>%
-  rename(county = NAMELSAD) %>%
-  dplyr::select(-GEOID)
+  rename(county = NAMELSAD)
   
 ```
 
@@ -1505,6 +1556,7 @@ presentTheme <- function(base_size = 30, title_size = 45) {
   )
 }
 
+
 byStationByWeek = 
   finalComparison %>%
   group_by(station, week) %>%
@@ -1515,18 +1567,24 @@ byStationByWeek =
          model = recode(model, 
                         'MAE2h' = '2 hours prior',
                         'MAE30m' = '30 minutes prior'))
-
-byStationByWeek %>%
+byLine
+byStationByWeekAnimation = 
+  byStationByWeek %>%
   ggplot() +
   geom_sf(data = st_union(njCounties),
           color='black', size=1.5, fill = NA)+
   geom_sf(data = njCounties,
           color= 'black', size=0.5,linetype = 'dashed', fill = NA) +
-  geom_sf(aes(color = MAE)) +
-  scale_color_gradient(high = brightRed, low = darkBlue) +
-  facet_grid(model ~ week) +
+  geom_sf(aes(color = MAE), size = 2) +
+  scale_color_gradient(high = lightRed, low = darkBlue) +
+  facet_wrap(model) +
+  transition_manual(week) +
   presentTheme() +
   theme(legend.position = c(1.3, 0.5))
+
+mean(trains6$delay, na.rm = T)
+mean((trains6 %>% filter(., (!(dayOfWeek %in% c('1', '2')))))$delay, na.rm = T)
+
 ```
 
 ```{r MAE by station by day of week, fig.height = 16}
@@ -1546,25 +1604,218 @@ byStationByDayOfWeek =
                        '2' = 'Sun') %>%
            factor(., levels = c('Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun')),
          model = recode(model, 
-                        'MAE2h' = '2 hours prior',
-                        'MAE30m' = '30 minutes prior'))
+                        'MAE2h' = '2 hours ahead',
+                        'MAE30m' = '30 minutes ahead'))
 
-byStationByDayOfWeek %>%
+byStationByDayOfWeekAnimation = 
+  byStationByDayOfWeek %>%
+  mutate(MAE = ifelse(MAE > 5, 5, MAE)) %>%
   ggplot() +
   geom_sf(data = st_union(njCounties),
           color='black', size=1.5, fill = NA)+
   geom_sf(data = njCounties,
           color= 'black', size=0.5,linetype = 'dashed', fill = NA) +
-  geom_sf(aes(color = MAE)) +
-  scale_color_gradient(high = brightRed, low = darkBlue) +
-  facet_grid(model ~ dayOfWeek) +
-  presentTheme() 
+  geom_sf(aes(color = MAE), size = 3) +
+  scale_color_gradient(high = brightRed, low = darkBlue,
+                       name = '',
+                       breaks = c(0, 1, 2, 3, 4, 5),
+                       labels = c("0", "1", "2", "3", "4", "5+")) +
+  facet_wrap(~model) +
+  labs(title = '{current_frame}') +
+  transition_manual(dayOfWeek) +
+  presentTheme()
+
+
+anim_save("byStationByDayOfWeekAnimation.gif", byStationByDayOfWeekAnimation,
+          duration=7, renderer = gifski_renderer(), height = 715, width = 715)
 ```
 
-```{r MAE by line}
+```{r MAE by hour, fig.height = 24}
 
+byStationByHour = 
+  finalComparison %>%
+  mutate(hour = as.numeric(hour)) %>%
+  group_by(station, hour) %>%
+  summarize(MAE2h = mean(absErrLong, na.rm = T),
+            MAE30m = mean(absErrShort, na.rm = T)) %>%
+  gather(model, MAE, -station, -hour, -geometry) %>%
+  mutate(model = recode(model, 
+                        'MAE2h' = '2 hours ahead',
+                        'MAE30m' = '30 minutes ahead'))
+
+byStationByHourAnimation = 
+  byStationByHour %>%
+  mutate(MAE = ifelse(MAE > 5, 5, MAE)) %>%
+  ggplot() +
+  geom_sf(data = st_union(njCounties),
+          color='black', size=1.5, fill = NA)+
+  geom_sf(data = njCounties,
+          color= 'black', size=0.5,linetype = 'dashed', fill = NA) +
+  geom_sf(aes(color = MAE), size = 3) +
+  scale_color_gradient(high = brightRed, low = darkBlue,
+                       name = '',
+                       breaks = c(0, 1, 2, 3, 4, 5),
+                       labels = c("0", "1", "2", "3", "4", "5+")) +
+  facet_wrap(~model) +
+  labs(title = '{current_frame}:00 ~ {current_frame}:59') +
+  transition_manual(hour) +
+  presentTheme()
+
+anim_save("byStationByHourAnimation.gif", byStationByHourAnimation,
+          duration=12, renderer = gifski_renderer(), height = 715, width = 715)
+
+?facet_wrap
 ```
 
-```{r MAE by county}
+```{r MAE by line, fig.height = 9}
 
+lines = rbind(
+  st_read('https://services6.arcgis.com/M0t0HPE53pFK525U/arcgis/rest/services/NJTransit_Rail_Linea/FeatureServer/0/query?outFields=*&where=1%3D1&f=geojson') %>%
+    st_transform(crs) %>%
+    mutate(line = 'Northeast Corrdr') %>%
+    dplyr::select(line),
+  st_read('https://services6.arcgis.com/M0t0HPE53pFK525U/arcgis/rest/services/NJTransit_Rail_Linea/FeatureServer/6/query?outFields=*&where=1%3D1&f=geojson') %>%
+    st_transform(crs) %>%
+    mutate(line = 'Atl. City Line') %>%
+    dplyr::select(line),
+  st_read('https://services6.arcgis.com/M0t0HPE53pFK525U/arcgis/rest/services/NJTransit_Rail_Linea/FeatureServer/7/query?outFields=*&where=1%3D1&f=geojson') %>%
+    st_transform(crs) %>%
+    mutate(line = 'Bergen Co. Line ') %>%
+    dplyr::select(line),
+  st_read('https://services6.arcgis.com/M0t0HPE53pFK525U/arcgis/rest/services/NJTransit_Rail_Linea/FeatureServer/9/query?outFields=*&where=1%3D1&f=geojson') %>%
+    st_transform(crs) %>%
+    mutate(line = 'Gladstone Branch') %>%
+    dplyr::select(line),
+  st_read('https://services6.arcgis.com/M0t0HPE53pFK525U/arcgis/rest/services/NJTransit_Rail_Linea/FeatureServer/4/query?outFields=*&where=1%3D1&f=geojson') %>%
+    st_transform(crs) %>%
+    mutate(line = 'Main Line') %>%
+    dplyr::select(line),
+  st_read('https://services6.arcgis.com/M0t0HPE53pFK525U/arcgis/rest/services/NJTransit_Rail_Linea/FeatureServer/8/query?outFields=*&where=1%3D1&f=geojson') %>%
+    st_transform(crs) %>%
+    mutate(line = 'Montclair-Boonton') %>%
+    dplyr::select(line),
+  st_read('https://services6.arcgis.com/M0t0HPE53pFK525U/arcgis/rest/services/NJTransit_Rail_Linea/FeatureServer/3/query?outFields=*&where=1%3D1&f=geojson') %>%
+    st_transform(crs) %>%
+    mutate(line = 'Morristown Line') %>%
+    dplyr::select(line),
+  st_read('https://services6.arcgis.com/M0t0HPE53pFK525U/arcgis/rest/services/NJTransit_Rail_Linea/FeatureServer/10/query?outFields=*&where=1%3D1&f=geojson') %>%
+    st_transform(crs) %>%
+    mutate(line = 'No Jersey Coast') %>%
+    dplyr::select(line),
+  st_read('https://services6.arcgis.com/M0t0HPE53pFK525U/arcgis/rest/services/NJTransit_Rail_Linea/FeatureServer/12/query?outFields=*&where=1%3D1&f=geojson') %>%
+    st_transform(crs) %>%
+    mutate(line = 'Pascack Valley') %>%
+    dplyr::select(line),
+  st_read('https://services6.arcgis.com/M0t0HPE53pFK525U/arcgis/rest/services/NJTransit_Rail_Linea/FeatureServer/11/query?outFields=*&where=1%3D1&f=geojson') %>%
+    st_transform(crs) %>%
+    mutate(line = 'Raritan Valley') %>%
+    dplyr::select(line)
+)
+
+st_crs(byLine)
+
+byLine0 = 
+  finalComparison %>%
+  st_drop_geometry %>%
+  group_by(line) %>%
+  summarize(MAE2h = mean(absErrLong, na.rm = T),
+            MAE30m = mean(absErrShort, na.rm = T))
+# %>%
+#   left_join(lines, by = 'line') %>%
+#   gather(model, MAE, -line, -geometry) %>%
+#   st_sf() %>%
+#   mutate(model = recode(model, 
+#                         'MAE2h' = '2 hours prior',
+#                         'MAE30m' = '30 minutes prior'))
+
+byLine = lines %>%
+  left_join(byLine0, by = 'line')
+
+byLine1 = byLine %>%
+  dplyr::select(line, MAE2h) %>%
+  rename(MAE = MAE2h) %>%
+  mutate(model = '2 hours ahead')
+
+byLine2 = byLine %>%
+  dplyr::select(line, MAE30m) %>%
+  rename(MAE = MAE30m) %>%
+  mutate(model = '30 minutes ahead')
+
+byLineB = rbind(byLine1, byLine2)
+
+byLineB %>%
+  ggplot() +
+  geom_sf(data = st_union(njCounties),
+          color='black', size=1.5, fill = NA)+
+  geom_sf(data = njCounties,
+          color= 'black', size=0.5,linetype = 'dashed', fill = NA) +
+  geom_sf(aes(color = MAE), size = 2) +
+  scale_color_gradient(high = brightRed, low = darkBlue, name = '') +
+  facet_wrap(~model) +
+  presentTheme()
+```
+
+```{r MAE by tile, fig.height = 9, fig.width = 12}
+finalComparison = finalComparison %>%
+  mutate(tile = case_when(obs < 20 ~ "<20 min",
+                          obs < 40 ~ "20~40 min",
+                          obs < 60 ~ "40~60 min",
+                          obs < 80 ~ "60~80 min",
+                          obs <= 100 ~ "80~100 min",
+                          TRUE ~ ">100 min") %>%
+           factor(, levels = c("<20 min", "20~40 min",
+                               "40~60 min", "60~80 min",
+                               "80~100 min", ">100 min")))
+
+byTile = 
+  finalComparison %>%
+  group_by(tile) %>%
+  summarize(meanObs = mean(obs, na.rm = T),
+            meanPredLong = mean(predLong, na.rm = T),
+            meanPredShort = mean(predShort, na.rm = T)) %>%
+  st_drop_geometry() %>%
+  gather(model, meanPred, -meanObs, -tile)%>%
+  mutate(model = recode(model, 
+                        'meanPredLong' = '2 hours ahead',
+                        'meanPredShort' = '30 minutes ahead')) %>%
+  gather(variable, value, -tile, -model) %>%
+  mutate(variable = recode(variable,
+                        "meanObs" = "Observed",
+                        "meanPred" = "Predicted"))
+
+
+presentPlotTheme <- function(base_size = 30, title_size = 45) {
+  theme(
+    text = element_text(family = 'font', color = "black"),
+    plot.title = element_text(hjust = 0.5, size = title_size, colour = "black",face = "bold"), 
+    plot.subtitle = element_text(hjust = 0.5,size=base_size,face="italic"),
+    plot.caption = element_text(size=base_size,hjust=0),
+    axis.ticks = element_blank(),
+    panel.spacing = unit(3, 'lines'),
+    panel.background = element_blank(),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    panel.border = element_rect(colour = "black", fill=NA, size=.5),
+    strip.background = element_rect(fill = "grey95", color = "black"),
+    strip.text = element_text(size=base_size),
+    axis.title = element_text(face = "bold",size=base_size),
+    axis.text = element_text(family = 'font', size=20),
+    plot.background = element_blank(),
+    legend.background = element_blank(),
+    legend.title = element_text(size=base_size,colour = "black", face = "italic"),
+    legend.text = element_text(size=20,colour = "black", face = "italic"),
+    strip.text.x = element_text(size = base_size,face = "bold"),
+    legend.key.size = unit(2, 'line')
+  )
+}
+
+byTile %>%
+  ggplot(aes(tile, value, shape = variable)) +
+  geom_point(size = 4) +
+  geom_path(aes(group = tile), color = 'black') +
+  scale_shape_manual(values = c(2, 17), name = "") +
+  facet_wrap(~model) +
+  labs(x = 'Actual mean delay', y = 'Predicted mean delay') +
+  presentPlotTheme() +
+  theme(axis.text.x = element_text(angle = 90, size = 20, vjust = 0.5, hjust = 1))
 ```
