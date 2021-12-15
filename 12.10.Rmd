@@ -5,6 +5,7 @@ date: "12/10/2021"
 output:
   html_document: 
     toc: yes
+    toc_depth: 4
     toc_float: yes
     code_folding: hide
     theme: paper
@@ -42,7 +43,6 @@ th{
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
-
 ```
 
 ```{r set_up,message = FALSE, warning = FALSE, results='hide'}
@@ -83,9 +83,7 @@ source("https://raw.githubusercontent.com/urbanSpatial/Public-Policy-Analytics-L
 
 windowsFonts(font = windowsFont('Helvatica'))
 
-ll <- function(dat, proj4 = 4326){
-st_transform(dat, proj4)
-}
+ll <- function(dat, proj4 = 4326){st_transform(dat, proj4)}
 
 plotTheme <- function(base_size = 9, title_size = 10){
   theme(
@@ -152,12 +150,19 @@ palette1_assist <- '#F9B294'
 
 ### 1. Motivation
 
-Problem and potential in the train delay
+Railway is an important mode of long-distance passenger transport in US. In 2018, number of passengers carried by railways for United States of America was 31,962.7 million passenger-km. New Jersey Transit Corporation, branded as NJ Transit, is a state-owned public transportation system that serves the US state of New Jersey, along with portions of New York State and Pennsylvania. Covering a service area of 5,325 square miles (13,790 km2), NJ Transit is the largest statewide public transit system and the third-largest provider of bus, rail, and light rail transit by ridership in the United States. The important role of railway transport in national economy and citizen benefits has attracted wide-spread attention from both academic and industrial fields.
 
-Our model is also useful for the transit company. We construct models to predict delays ahead of schedule by different lengths of time, for example, 2 hours / half an hour. These real time predictions informs better dispatch so that potential long delays could be avoided. Meanwhile, the long-term model results help identifying problems within the transit network.
+```{r ReadbackgroundPic, echo=FALSE,fig.height = 2,out.width = '75%',fig.align = 'center',fig.cap='A NJ Transit train disabled by a fire at the Princeton Junction in West Windsor in this 2018 file photo.Ed Murray | NJ Advance Media for'}
+knitr::include_graphics("delayBackground.jfif")
+```
 
-For city planners, we can create an organized delay database helping to better understand the city, both in terms of conclusive station features and of city-level mobility patterns, informing any planning initiative to improve station areas or the structure of the entire city.
+However, sadly, NJ Transit trains broke down more than any other system’s in the nation in 2019, ranking the worst in the nation, according to Federal Transit Administration data. Train Delay will not only cause the convenience to people's lives but also cause the financial and social lost to the society. Under this circumstance, for NJ Transit's administration, how to effectively predict and manage the train delay is vital.
 
+```{r ReadbackgroundPic, echo=FALSE,fig.height = 1,out.width = '75%',fig.align = 'center'}
+knitr::include_graphics("USECASECONCEPT.png")
+```
+
+Our model's use case is based on the NJ Transit company. A model to predict delays ahead of schedule by 2 hours will be made toward NJ Transit. These real time predictions will inform the *DELAY* prediction to the administrator of NJ Transit in this way to help them   better dispatch and manage the train resources (for example, redeploy trains and temporarily accelerate the train speed) so that potential long delays could be avoided. Meanwhile, the long-term model results help identifying problems within the transit network.
 
 ```{r geographies&stations, message = FALSE, warning = FALSE, results='hide'}
 # County Geographical data
@@ -215,7 +220,7 @@ njStations[116, 1] = 'broadway fair lawn'
 njStations[132, 1] = 'essex street'
 ```
 
-```{r stations_exploratory_plot,fig.height = 3,message = FALSE, warning = FALSE, results='hide',out.width = '75%',fig.align = 'center'}
+```{r stations_exploratory_plot,fig.height = 5,message = FALSE, warning = FALSE, results='hide',out.width = '75%',fig.align = 'center'}
 base_map <- get_map(location = unname(st_bbox(ll(st_buffer(st_union(njCounties),11000)))),maptype = "terrian")
 
 ggmap(base_map) + 
@@ -228,11 +233,11 @@ ggmap(base_map) +
 
 ```
 
-In the above graph, we can see the geographical distribution of the station...
+In the above graph, we can see the geographical distribution of NJ Transit stations are mainly in the north-east of New Jersey, close to New York.
 
 ### 2. Exploratory Analysis
 
-Data in September and October of 2019 are read. In this section, several exploratory analysis will be done to explained concepts and phenomenons clearly to readers.
+Data of NJ Transit Train Delay in September and October of 2019 are used. For further operation, stations' names are standardized. In this section, several exploratory analysis will be done to explained concepts, phenomenons, and patterns.
 
 ```{r read_trains_data, message = FALSE, warning = FALSE, results='hide'}
 # 2019.9
@@ -295,9 +300,9 @@ trainsWithGeometry = trains %>%
   dplyr::select(-joined)
 ```
 
-#### 2.1 What exactly is trainID?
+#### 2.1 What is trainID?
 
-When the dataset of NJ Transit is first getted. The exact properties of field **"TrainID"** is confusing. The following section will emphasize on that to clarify the exact properties of "TrainID". 
+When the data set of NJ Transit is firstly obtained, the exact characters of field **"TrainID"** is confusing. To model the prediction, we need to understand the basic unit of rail transportation, TrainID. The following section will emphasize on that to clarify "TrainID". 
 
 ```{r illustrate trainID and express line,message = FALSE, warning = FALSE, results='hide'}
 # A trainID is for a whole trip
@@ -321,35 +326,38 @@ TrainIDforDifDay = trains%>%
 TrainIDforDifDay = TrainIDforDifDay[1:5,]
 ```
 
-```{r talbe1 for illustrate trainID and express line, echo=FALSE}
-kable(trainIDforWholeTrip,align = 'c',caption = '<center>Table.A trainID for a whole trip</center>')%>%
+```{r talbe1 for illustrate trainID and express line, echo=FALSE,fig.height=3,out.width=75%}
+kable(trainIDforWholeTrip,align = 'c',caption = '<center>A trainID for a whole trip</center>')%>%
   kable_classic(full_width = T)%>%
-  kable_styling(position = "center",font_size = 12)%>%
+  kable_styling(position = "center")%>%
   column_spec(2, background = palette1_assist)%>%
   column_spec(3, background = palette1_main)
 ```
 
-```{r talbe2 for illustrate trainID and express line, echo=FALSE}
+From the first table, we can know that a trainID is costatnt for a whole trip, from first station to the last station of the line.
+
+```{r talbe2 for illustrate trainID and express line, echo=FALSE,fig.height=1.5,out.width=75%}
 kable(difTrainIDs,align = 'c',caption = '<center>Table.Different TrainIDs within the same day & Express or normal lines</center>')%>%
   kable_classic(full_width = T)%>%
-  kable_styling(position = "center",font_size = 12)%>%
+  kable_styling(position = "center")%>%
   column_spec(2, background = palette1_assist)%>%
   row_spec(2, background = palette1_main)%>%
   row_spec(3, background = palette1_main)
 ```
 
-```{r talbe3 for illustrate trainID and express line, echo=FALSE}
+From this table, we can know that for a same transit line, different trainIDs will be used within the same day. And even for the same trainsit line, there are several sublines, which have various initial station, terminal station, and routes.
+
+```{r talbe3 for illustrate trainID and express line, echo=FALSE,fig.height=1.5,out.width=75%}
 kable(TrainIDforDifDay,align = 'c',caption = '<center>Table.A TrainID is allocated for the specific time slot everyday</center>')%>%
   kable_classic(full_width = T)%>%
-  kable_styling(position = "center",font_size = 12)%>%
+  kable_styling(position = "center")%>%
   column_spec(2, background = palette1_assist)%>%
   column_spec(1,background = palette1_main)
 ```
 
-From the first table, a conclusion can be drown that '# A trainID is for a whole trip'
-From the first table, a conclusion can be drown that '# Different TrainIDs is within the same day & Express or normal lines'
-From the first table, a conclusion can be drown that '# A TrainID is allocated for the specific time slot train everyday or more'
-Based on above situations, how about divide the sublines of every line? In theory, they may make the prediction more accurate. However, following graph displays the convoluted of the division. About 59 sublines will be needed to distinguish the sublines. That will bring une
+From this table, we can know that a TrainID is allocated for the trains which run at specific same scheduled time everyday with the same route.
+
+Besides, based on above insights, Should we divide the sublines of every transit line? In theory, detailed sublines may make observation more accurate and prediction more accurate. However, following graph displays the convoluted of the division. About 59 sublines will be needed to distinguish the sublines. That will bring une
 
 ```{r distinguish sublines, message = FALSE, warning = FALSE, results='asis', eval = FALSE}
 # Distinguish Express and normal lines
