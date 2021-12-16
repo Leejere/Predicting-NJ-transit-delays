@@ -1,5 +1,5 @@
 ---
-title: "<i><b>Delayed Early:</b></i> <br />Predicting New Jersey Transit Delays"
+title: "<b>Delayed Early:</b> <br />Predicting New Jersey Transit Delays"
 author: "Jie Li, Xiong Zheng"
 date: "12/10/2021"
 output:
@@ -82,6 +82,8 @@ library(jsonlite)
 library(magick)
 library(magrittr)
 library(janitor)
+library(plotROC)
+library(pROC)
 
 root.dir = "https://raw.githubusercontent.com/urbanSpatial/Public-Policy-Analytics-Landing/master/DATA/"
 source("https://raw.githubusercontent.com/urbanSpatial/Public-Policy-Analytics-Landing/master/functions.r")
@@ -384,7 +386,7 @@ TrainIDforDifDay = TrainIDforDifDay[1:5,]
 ```
 
 ```{r table1 for illustrate trainID and express line, echo=FALSE,fig.height=1, results='asis'}
-kable(trainIDforWholeTrip,align = 'c',caption = '<center>Table 1. trainID for a whole trip</center>',table.attr = "style='width:75%;'")%>%
+kable(trainIDforWholeTrip,align = 'c',caption = '<center>Table 1. trainID for a whole trip</center>')%>%
   kable_classic(full_width = T)%>%
   kable_styling(position = "center")%>%
   column_spec(2, bold = T,color = palette1_assist)%>%
@@ -392,7 +394,7 @@ kable(trainIDforWholeTrip,align = 'c',caption = '<center>Table 1. trainID for a 
 ```
 
 ```{r table2 for illustrate trainID and express line, echo=FALSE,fig.height=1, results='asis'}
-kable(difTrainIDs,align = 'c',caption = '<center>Table 2. Different TrainIDs within the same day & Express or normal lines</center>',table.attr = "style='width:75%;'")%>%
+kable(difTrainIDs,align = 'c',caption = '<center>Table 2. Different TrainIDs within the same day & Express or normal lines</center>')%>%
   kable_classic(full_width = T)%>%
   kable_styling(position = "center")%>%
   column_spec(2, bold = T,color = palette1_assist)%>%
@@ -401,7 +403,7 @@ kable(difTrainIDs,align = 'c',caption = '<center>Table 2. Different TrainIDs wit
 ```
 
 ```{r table3 for illustrate trainID and express line, echo=FALSE,fig.height=1, results='asis'}
-kable(TrainIDforDifDay,align = 'c',caption = '<center>Table 3. TrainID is allocated for the specific time slot everyday</center>',table.attr = "style='width:75%;'")%>%
+kable(TrainIDforDifDay,align = 'c',caption = '<center>Table 3. TrainID is allocated for the specific time slot everyday</center>')%>%
   kable_classic(full_width = T)%>%
   kable_styling(position = "center")%>%
   column_spec(2, bold = T,color = palette1_main)%>%
@@ -712,13 +714,26 @@ correlation.lag <-
   summarize(correlation = round(cor(Value, delay,
                                     use = "complete.obs"), 2))
 
-ggplot(lagVarScatter%>% sample_n(30000), aes(Value, delay)) +
+ggplot(lagVarScatter %>% 
+         mutate(Variable = recode(Variable,
+                                  "lagDelay" = "Line delay lag",
+                                  "stationDelay" = "Station delay lag: this station",
+                                  "lag1StationDelay" = "Station delay lag: previous station",
+                                  "lag2StationDelay" = 
+                                    "Station delay lag:\nprevious of previous station",
+                                  "lagDelayDayPlus" = "Same-train previous delay"),
+                Variable = factor(., levels = c("Line delay lag",
+                                                "Station delay lag: this station",
+                                                "Station delay lag: previous station",
+                                                "Station delay lag:\nprevious of previous station",
+                                                "Same-train previous delay"))) %>% 
+         sample_n(30000), aes(Value, delay)) +
   geom_point(size = .1, color = palette1_main) +
   geom_text(data = correlation.lag,aes(label = paste("r =", round(correlation, 2))),x=-Inf, y=Inf, vjust = 2, hjust = -.5,size=4) +
   geom_smooth(method = "lm", se = FALSE, colour = palette1_assist,size=1) +
   facet_wrap(~Variable, ncol = 3, scales = "free") +
   labs(
-    x="Lag Trip Count") +
+    x="Lag delay", y = "Delay") +
   plotTheme()
 ```
 
@@ -956,7 +971,7 @@ trainsTest = trainsFinal %>%
 
 ### 4 Building and improving the model
 
-#### 4.1 Two versions of baseline model
+#### 4.1 Baseline
 
 First, we try an Ordinary Least Square baseline model that takes *delay length* as the dependent variable and four categories of predictors:
 
@@ -965,7 +980,20 @@ First, we try an Ordinary Least Square baseline model that takes *delay length* 
 3. *Operation factors*, i.e., weather, direction, and stop sequence.
 4. *Time lag features*, i.e., line delay, station delay, and same-train previous delay.
 
-*How good is this model?* Figure 10. shows by scatter plot the relationship between the *predicted* delays and the *actual delays*, and Figure 11. plots the the differences between the predicted and actual delays for groups of short, median or long delays. It is evident that this baseline model 
+*How good is the Baseline model?* Figure 10. shows by scatter plot the relationship between the *predicted* delays and the *actual delays*, and Figure 11. plots the the differences between the predicted and actual delays for groups of short, median or long delays. It is evident that this baseline model under-predicts the long delays. This is probably because the distribution of delays is highly skewed, as shown in the histogram in Figure 12.
+
+```{r delay distribution hist, message=FALSE, warning=FALSE,fig.height=4,out.width='50%',fig.align='center', fig.cap = "Figure 12. Distribution of delays"}
+ggplot(trainsTrain) +
+  geom_histogram(aes(delay), bins = 50,fill=palette1_main)+
+  labs(title = '',x='Delay',y='Count') +
+  plotTheme()
+```
+
+#### 4.2 Improving Baseline
+
+To avoid under-predicting long delays, we make the following adjustment to the Baseline model. First, we add a peak station-hour effect, as explained in Section 2.4. Then, we try to apply a logarithmic or square-root transformation to the dependent variable and/or predictors. However, as shown in Figure 13., the Logarithmic Transformation Model now drastically over-predicts long delays. On the other hand, the Square-Root Transformation Model does much better in predicting those long delays. Furthermore, we devise an addition model which applies a square-root transformation not only to the dependent variable, but also to the time-lag features (predictors).
+
+Figure 14. exhibits the relationship between *actual delay* and *absolute prediction error* of the above-mentioned four models: 1) Baseline, 2) Logarithmic Transformation, 3) Square-Root Transformation to Dependent Variable, and 4) Square-Root Transformation to Dependent and Independent Variables. Table 4. summarizes the MAE (mean absolute error) corresponding to these four models. By applying square-root transformations to predictors, the fourth model does not perform better than the third model, which applyes a square-root transformation only to the dependent variable.
 
 ```{r models,warning=FALSE, message=FALSE,results='hide'}
 
@@ -973,7 +1001,7 @@ First, we try an Ordinary Least Square baseline model that takes *delay length* 
 reg2hBaseline = lm(delay ~ 
                stop_sequence + to + line + lagDelay + stationDelay +
                lag1StationDelay + lag2StationDelay + lagDelayDayPlus +
-               hour + dayOfWeek + precip + stationHour10Tile + distFirstStation + direction,
+               hour + dayOfWeek + precip + distFirstStation + direction,
              data = trainsTrain)
 
 trainsTest = trainsTest %>%
@@ -1052,55 +1080,13 @@ trainsTest%>%
 
 ```{r models table,fig.height=1, results='asis'}
 ErrComparison = ErrComparison%>%rename('Log Transform'='LogTrans','Sqrt DEP Var'='SqrtDep','Sqrt DEP & IND Vars'='SqrtDepIndep')
-kable(ErrComparison,align = 'c',caption = '<center>Table.A </center>',table.attr = "style='width:75%;'")%>%
+kable(ErrComparison,align = 'c',caption = '<center>Table 4. MAEs for the four linear models </center>',table.attr = "style='width:75%;'")%>%
   kable_classic(full_width = T)%>%
   kable_styling(position = "center")%>%
   row_spec(0, bold = T,color = palette1_main)
 ```
 
-#### 4.2 Logit models attempt
-
-```{r logit reason plot, message=FALSE, warning=FALSE,fig.height=4,out.width='50%',fig.align='center'}
-ggplot(trainsTrain) +
-  geom_histogram(aes(delay), bins = 50,fill=palette1_main)+
-  labs(title = '',x='Delay',y='Count') +
-  plotTheme()
-```
-
-Since the outcome distribution is heavily skewed. A logit transformation should work well here. 
-
-```{r late-or-not logit reg, message=FALSE, warning=FALSE}
-trainsTrain2 = trainsTrain %>%
-  mutate(late = ifelse(delay > 5, 1, 0))
-trainsTest2 = trainsTest %>%
-  mutate(late = ifelse(delay > 5, 1, 0))
-lateOrNot = glm(late ~ 
-                  stop_sequence + to + line + lagDelay + stationDelay +
-                  lag1StationDelay + lag2StationDelay + lagDelayDayPlus +
-                  hour + dayOfWeek + precip + stationHour10Tile + distFirstStation + direction,
-                data = trainsTrain2,
-                family="binomial" (link="logit"))
-
-lateProbs = data.frame(
-  outcome = as.factor(trainsTest2$late),
-  probs = predict(lateOrNot, trainsTest2, type = 'response'))
-```
-
-```{r logit results plot, message=FALSE, warning=FALSE,fig.height=4,out.width='50%',fig.align='center'}
-ggplot(lateProbs, aes(x = probs, fill = as.factor(outcome))) +
-  geom_density(color=FALSE) +
-  facet_grid(outcome ~.) +
-  scale_fill_manual(values = palette2,name = "Delay or Not") +
-  xlim(0, 1) +
-  plotTheme()+
-  labs(title = '',x='Probability',y='Density')+
-  theme(legend.position = "bottom")
-```
-
-But from the drawing, we can see the density diagram is heavily overlapped. That means the logistic regression may not be suitable here.
-Therefore we still focuses on the baseline model. From the plots, we can find out that the prediction error mainly exist in the small delay intervals. So the following section will try to focus on the small delays.
-
-#### 4.3 Model for Small Delays
+#### 4.3 Separate model for Small Delays
 
 ```{r model for small delays, message=FALSE, warning=FALSE}
 
@@ -1137,11 +1123,79 @@ ggplot(trainsTest) +
 
 ```
 
+#### 4.4 Logit: better at a 10-minute delay
+
+It is also possible that a logit model, which classifies all delays into either "delay" or "non-delay", might work. Here, we consider delays that are longer than five minutes as "delayed", and those shorter than five minutes are "not delayed". By training a logit model on the training set and testing it on the test set, we evaluate the logit model through Figure 15., which shows the distributions of predicted possibilities of delay by observed outcome. 
+
+```{r late-or-not logit reg, message=FALSE, warning=FALSE}
+trainsTrain2 = trainsTrain %>%
+  mutate(late = ifelse(delay > 10, 1, 0))
+trainsTest2 = trainsTest %>%
+  mutate(late = ifelse(delay > 10, 1, 0))
+lateOrNot = glm(late ~ 
+                  stop_sequence + to + line + lagDelay + stationDelay +
+                  lag1StationDelay + lag2StationDelay + lagDelayDayPlus +
+                  hour + dayOfWeek + precip + stationHour10Tile + distFirstStation + direction,
+                data = trainsTrain2,
+                family="binomial" (link="logit"))
+
+lateProbs = data.frame(
+  outcome = as.factor(trainsTest2$late),
+  probs = predict(lateOrNot, trainsTest2, type = 'response'))
+```
+
+```{r logit results plot, message=FALSE, fig.cap = 'Figure 15. Distribution of predicted delay possibilities by observed outcome', warning=FALSE,fig.height=4,out.width='50%',fig.align='center'}
+ggplot(lateProbs, aes(x = probs, fill = as.factor(outcome))) +
+  geom_density(color=FALSE) +
+  facet_grid(outcome ~.) +
+  scale_fill_manual(values = palette2,name = "Delayed or not delayed") +
+  xlim(0, 1) + 
+  plotTheme()+
+  labs(title = '',x='Probability',y='Density')+
+  theme(legend.position = "bottom")
+```
+
+Although these two distributions are not as distinctive as expected, the ROC curve as shown in Figure 16. suggests that if we set the threshold at around 0.11, the sensitivity and specificity of the model is still acceptable, as shown in Table 5. This means that the model is able to identify around 70% of all delays longer than 10 minutes, and that around 70% of the identified over-10-minute delays are in fact longer than 10 minutes.
+
+```{r roc, message=FALSE, warning=FALSE,fig.height=4,out.width='50%',fig.align='center'}
+ggplot(lateProbs, aes(d = as.numeric(lateProbs$outcome), m = probs)) +
+  geom_roc(n.cuts = 50, labels = FALSE, colour = color2) +
+  style_roc(theme = theme_grey) +
+  geom_abline(slope = 1, intercept = 0, size = 1.5, color = 'grey') +
+  labs(title = "ROC Curve - delayed or not delayed") +
+  plotTheme()
+```
+
+
+**This logistic model is a good supplement for the linear model**. In Figure X., we find that although the model successfully predicts many long delays (delays longer than 40 minutes), a significant portion of mid-range delays (delays 10-40 minutes) are predicted nearly as non-delays in the linear model. Therefore, by a 70% sensitivity, the logistic model is an important supplement to the linear model in the prediction for mid-range delays.
+
+```{r logit eval, message=FALSE, warning=FALSE,fig.height=4,out.width='50%',fig.align='center'}
+lateProbs2 = lateProbs %>%
+  mutate(predOutcome = as.factor(ifelse(lateProbs$probs > 0.11, 1, 0)))
+
+matrix2 = caret::confusionMatrix(lateProbs2$predOutcome, lateProbs2$outcome, positive = '1')
+
+cbind(
+  Sensitivity = matrix2[['byClass']]['Sensitivity'],
+  Specificity = matrix2[['byClass']]['Specificity'],
+  AUC = pROC::auc(lateProbs2$outcome, lateProbs2$probs)
+) %>% as.data.frame() %>%
+  gather(Metric, Value) %>%
+  kable(caption = '<center><small><small><small>Table 6. Model results of the logistic model</small></small></small></center>') %>% 
+  kable_classic(full_width = FALSE,
+                  html_font = 'Open Sans',
+                  position = 'center',
+                  font_size = 10)
+```
+
+
 ### 5 Generalizability
 
 #### 5.1 Cross Validation
 
-Following is the CV for the dataset.
+We cross-validate (CV) both the final linear model and the logic model by day; that is, each day takes turns to be the test set on which a model trained on the rest of the days is tested.
+Figure 16. shows the CV results of the linear model, and Figure 17. shows the CV results of the logistic model. Both suggest that the models predict the most errors during the weekend, despite that the day of week is already controlled for.
+
 ```{r cross validation by day,message=FALSE, warning=FALSE,eval=FALSE}
 trainsL = trainsFinal %>%
   filter(line!="Atl. City Line")%>%
@@ -1190,6 +1244,7 @@ for (dayNo in dateList){
   cat('The 2h-MAE is', MAE2h, '\n')
 }
 
+
 CVResult = cbind(MAE2hList)%>%
   as.data.frame() %>%
   mutate(MAE2h = MAE2hList %>% as.numeric()) %>%
@@ -1212,9 +1267,75 @@ ggplot(data=CVResult,aes(date, MAE2h)) +
   plotTheme()
 ```
 
-From the outcome, we can see that Higher error with higher delays on weekends, 30-minute-ahead prediction not much better than 2-hour-ahead.
+```{r CV Logit, eval = FALSE, message=FALSE, warning=FALSE,fig.height=4,out.width='50%',fig.align='center'}
+sensitivity = list()
+specificity = list()
+AUC = list()
 
-#### 5.2 By Station & Week
+for (dayNo in dateList){
+  gc()
+  
+  dayNoList = append(dayNoList, dayNo)
+  cat('This hold-out test day is', dayNo, '\n')
+  daysTrainL = trainsL %>% filter(., date != dayNo) %>% as.data.frame() %>%
+    mutate(late = ifelse(delay > 10, 1, 0))
+  daysTestL = trainsL %>% filter(., date == dayNo) %>% as.data.frame() %>%
+    mutate(late = ifelse(delay > 10, 1, 0))
+  
+  lateOrNot = glm(late ~ 
+                  stop_sequence + to + line + lagDelay + stationDelay +
+                  lag1StationDelay + lag2StationDelay + lagDelayDayPlus +
+                  hour + dayOfWeek + precip + stationHour10Tile + distFirstStation + direction,
+                data = daysTrainL,
+                family="binomial" (link="logit"))
+  testProbs = data.frame(
+    observed = as.factor(daysTestL$late),
+    probs = predict(lateOrNot, daysTestL, type = 'response'))
+  
+  testProbs = testProbs %>%
+      mutate(predOutcome = as.factor(ifelse(testProbs$probs >= 0.11, 1, 0)))
+    matrix = caret::confusionMatrix(
+      testProbs$predOutcome, testProbs$observed, positive = '1')
+    sensitivity = append(sensitivity,
+                         as.numeric(matrix[['byClass']]['Sensitivity']))
+    specificity = append(specificity,
+                         as.numeric(matrix[['byClass']]['Specificity']))
+    AUC = append(AUC,
+                 as.numeric(pROC::auc(testProbs$observed, testProbs$probs)))
+}
+
+CVResultLogit = cbind(sensitivity, specificity, AUC)%>%
+  as.data.frame() %>%
+  mutate(sensitivity = sensitivity %>% as.numeric(),
+         specificity = specificity %>% as.numeric(),
+         AUC = AUC %>% as.numeric()) %>%
+  cbind(dateList) %>%
+  as.data.frame() %>%
+  rename(date = dateList)
+
+st_write(CVResultLogit,"CVResultLogit.csv")
+```
+
+```{r PLOTforCV Logit, message=FALSE, warning=FALSE,fig.height=4,out.width='50%',fig.align='center', fig.cap = "Figure 17. CV results for the logistic model"}
+CVResultLogit <- read.csv("CVResultLogit.csv") %>%
+  mutate(date = ymd(date))%>%
+  rename(Sensitivity = sensitivity, Specificity = specificity) %>%
+  na.omit()%>%
+  gather(Metric, Value, -date)
+
+ggplot(data=CVResultLogit,aes(date, Value)) +
+  geom_point(size = 2,color=palette1_main) +
+  geom_line(data=CVResultLogit,aes(date, Value),color=palette1_assist,line=2) +
+  facet_wrap(~Metric) +
+  labs(x = 'Day', y = 'MAE') +
+  ylim(0,1)+
+  plotTheme()
+```
+
+#### 5.2 Generalizability by station and time
+
+Figure 18. Shows the MAE of the linear model for each station during the two weeks in the test set. We also calculate the MAE of each station by day of week (Figure 19.) and hour of day (Figure 20.) The results suggest that the generalizability of the linear model is generally acceptable, but that it generalizes better for weekdays and during daytime.
+
 ```{r MAE by station by week, message=FALSE, warning=FALSE,fig.height = 6,out.width='75%',fig.align='center'}
 finalComparison = trainsTest %>%
     mutate(obs= delay,
@@ -1242,7 +1363,6 @@ byStationByWeek %>%
   theme(legend.position = "bottom",panel.spacing = unit(6, 'lines'))
 ```
 
-#### 5.3 By Station & WeekDay
 ```{r MAE by station by day of week, eval=FALSE, message=FALSE, warning=FALSE,fig.height = 4,out.width='75%',fig.align='center'}
 byStationByDayOfWeek = 
   finalComparison %>%
@@ -1289,7 +1409,6 @@ anim_save("byStationByDayOfWeekAnimation.gif", byStationByDayOfWeekAnimation,
 knitr::include_graphics("byStationByDayOfWeekAnimation.gif")
 ```
 
-#### 5.4 By Station & hour
 ```{r MAE by hour, eval=FALSE, message=FALSE, warning=FALSE,fig.height = 4,out.width='75%',fig.align='center'}
 byStationByHour = 
   finalComparison %>%
@@ -1328,7 +1447,7 @@ anim_save("byStationByHourAnimation.gif", byStationByHourAnimation,
 knitr::include_graphics("byStationByHourAnimation.gif")
 ```
 
-#### 5.5 By line
+By calculating the MAE of each line (Figure 21.), we find that the linear model generalizes well across lines. Although the MAE of the Atlantic City Line is significantly higher, the result is still acceptable if we consider that the average delay of this line is four times that of other lines in the first place.
 
 ```{r MAE by line, message=FALSE, warning=FALSE}
 byLine0 = 
@@ -1342,7 +1461,6 @@ byLine = lines %>%
   left_join(byLine0, by = 'line')%>%
   dplyr::select(line, MAE2h)
 ```
-
 
 ```{r MAE by line2,message=FALSE, warning=FALSE,fig.height = 6,out.width = '75%',fig.align = 'center'}
 byLine %>%
@@ -1359,7 +1477,9 @@ byLine %>%
         legend.key.height = unit(1, 'cm'))
 ```
 
-#### 5.6 By tile
+#### 5.3 Generalizability by short and long delays
+
+Figure 22. Shows the relationship between the average predicted and observed delays across groups of short and long delays. The linear model is most accurate for short and very long delays, but under-predict those mid-range delays. As already noted in Section 4.4, this defect could be remediated to some extend by the logistic model.
 
 ```{r MAE by tile, ,message=FALSE, warning=FALSE}
 finalComparison = finalComparison %>%
@@ -1385,7 +1505,6 @@ byTile =
                         "meanPred" = "Predicted"))
 ```
 
-
 ```{r MAE by tile2,message=FALSE, warning=FALSE,fig.height = 4,out.width = '50%',fig.align = 'center',results='hide'}
 byTile %>%
   ggplot(aes(tile, value, shape = variable)) +
@@ -1398,7 +1517,15 @@ byTile %>%
   theme(axis.text.x = element_text(angle = 90, size = 20, vjust = 0.5, hjust = 1))
 ```
 
-### 6 Use Case
+### 6 An app for New Jersey Transit
+
+Now, we demonstrate how an app could be created based on the above models, that will be of assistance to the New Jersey Transit.
+
+In the above chapters, we have demonstrated how models are build to predict delays 2 hours ahead of schedule by training on four weeks in September and October, 2019. In practice, different models could be build to make predictions by different lengths ahead of schedule, although there exists a trade-off between how long ahead of time and how accurate the models can be. The training set could be continuously updated, as well as selective by month or season.
+
+A New Jersey Transit operator could easily view whether a train is predicted to delay and how long it is predicted to day  by filtering time of prediction (Figure 23.), scheduled time (Figure 24.), and so on. They can also view real-time average delays by line (Figure 25.), by station (Figure 26.), etc.
+
+Once the operator identifies the delayed trains, measures can be taken to mitigate the situation, e.g., by adjusting train speeds or directing more staff to accelerate passenger flows at the delayed stations (Figure 26.). The operator can first model the potential effects of these measures before making the decision (Figure 27.)
 
 ```{r ReadGif for NJ transit, echo=FALSE,fig.height = 6,out.width = '75%',fig.align = 'center'}
 knitr::include_graphics("./wireframe/01.jpg")
