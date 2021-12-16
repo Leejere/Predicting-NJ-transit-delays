@@ -971,9 +971,9 @@ trainsTest = trainsFinal %>%
 
 ### 4 Building and improving the model
 
-#### 4.1 Baseline model
+#### 4.1 Two versions of baseline model
 
-The baseline model an Ordinary Least Square linear model that takes *delay length* as the dependent variable and four categories of predictors:
+First, we try an Ordinary Least Square baseline model that takes *delay length* as the dependent variable and four categories of predictors:
 
 1. *Fixed effects (time)*, i.e., hour of day and day of week.
 2. *Fixed effects (space)*, i.e., line and station.
@@ -994,6 +994,8 @@ trainsTestBaseLine = trainsTest %>%
   st_drop_geometry()%>%
   dplyr::select(absError2hBaseline,line,delay,predict2hBaseline)
 ```
+
+*How good is this model?* Figure 10. shows by scatter plot the relationship between the *predicted* delays and the *actual delays*, and Figure 11. plots the the differences between the predicted and actual delays for groups of short, median or long delays. It is evident that this baseline model 
 
 ```{r plot model for BBaseline, message=FALSE, warning=FALSE,fig.height=4,out.width='50%',fig.align='center'}
 MAEForBaseline <- mean(trainsTestBaseLine$absError2hBaseline, na.rm = T)%>%as.data.frame()
@@ -1076,7 +1078,8 @@ byLine %>%
 
 ```{r models,warning=FALSE, message=FALSE,results='hide'}
 trainsTrain <- trainsTrain%>%filter(line!="Atl. City Line")
-trainsTest <- trainsTrain%>%filter(line!="Atl. City Line")
+trainsTest <- trainsTest%>%filter(line!="Atl. City Line")
+
 # Baseline
 reg2hBaseline = lm(delay ~ 
                stop_sequence + to + line + lagDelay + stationDelay +
