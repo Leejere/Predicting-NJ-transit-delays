@@ -159,37 +159,6 @@ palette1_assist <- '#F9B294'
 ^[New Jersey Transit website: https://www.njtransit.com/our-agency/about-us]
 Figure 1. shows the location of each New Jersey Transit station. The network consists of radial lines centered around Jersey City, Newark, and New York, with the exception of the Atlantic City Line which runs between Atlantic City and Philadelphia and is detached from the main network.
 
-```{r stations_exploratory_plot,fig.height = 5,message = FALSE, warning = FALSE, results='hide',out.width = '75%',fig.align = 'center', fig.cap = 'Figure 1. Locations of New Jersey Transit stations'}
-## use line; rid of axis titles
-base_map <- get_map(location = unname(st_bbox(ll(st_buffer(st_union(njCounties),11000)))),maptype = "terrian")
-
-ggmap(base_map) + 
-  geom_sf(data=ll(st_union(njCounties)),color="black",size=1.5,fill = "transparent",inherit.aes = FALSE)+
-  geom_sf(data=ll(njCounties),color="black",size=0.5,linetype ="dashed",fill = "transparent",inherit.aes = FALSE)+
-  geom_sf(data=ll(njStations),size=1.75,color=palette1_main,inherit.aes = FALSE)+
-  labs(title = "Map of NJ Transit Railway Stations", 
-       subtitle = "Red dots are stations")+
-  mapTheme()
-
-```
-
-But this system faces serious operation issues: according to Federal Transit Administration data, New Jersey Transit broke down more than more than any other system in the nation in 2019, plagued by constant delays and cancellations.
-^[*NJ Transit trains are the nation’s worst again, feds say*, News by NJ.com: https://www.nj.com/traffic/2019/12/nj-transit-trains-are-the-nations-worst-again-feds-say.html]
-
-<br>
-
-```{r ReadbackgroundPic, echo=FALSE,fig.height = 2,out.width = '75%',fig.align = 'center',fig.cap='Figure 2. A NJ Transit train disabled by a fire at the Princeton Junction'}
-knitr::include_graphics("delayBackground.jfif")
-```
-<br>
-A main reason for train delays is high passenger flows that exceed station capacity in particular space-times. But the current train dispatch system cannot foresee train delays long ahead of schedule and therefore cannot take action accordingly. With our prediction algorithm, once the transit company predicts, 2 hours ahead of schedule, that a long delay will occur, they can take measures in real time to mitigate the situation, e.g., adjusting train speeds, or directing more staff to assist passenger movement in the station. Furthermore, our algorithm can reveal the primary factors leading to train delays, based on which to improve the entire transit network.
-
-<br>
-```{r ReadbackgroundPic2, echo=FALSE,fig.height = 1,out.width = '75%',fig.align = 'center', fig.cap = 'Figure 3. Use case of our predicting algorithm'}
-knitr::include_graphics("USECASECONCEPT.png")
-```
-<br>
-
 ```{r geographies&stations, message = FALSE, warning = FALSE, results='hide'}
 # County Geographical data
 njCounties =
@@ -290,9 +259,7 @@ lines = rbind(
 )
 ```
 
-### 2. Exploring and wrangling data
-
-```{r stations_exploratory_plot,fig.height = 5,message = FALSE, warning = FALSE, results='hide',out.width = '75%',fig.align = 'center'}
+```{r stations_exploratory_plot2,fig.height = 5,message = FALSE, warning = FALSE, results='hide',out.width = '75%',fig.align = 'center',fig.cap = 'Figure 1. Locations of New Jersey Transit stations'}
 base_map <- get_map(location = unname(st_bbox(ll(st_buffer(st_union(njCounties),11000)))),maptype = "terrian")
 
 ggmap(base_map) + 
@@ -305,8 +272,26 @@ ggmap(base_map) +
   mapTheme()
 
 ```
+
+But this system faces serious operation issues: according to Federal Transit Administration data, New Jersey Transit broke down more than more than any other system in the nation in 2019, plagued by constant delays and cancellations.
+^[*NJ Transit trains are the nation’s worst again, feds say*, News by NJ.com: https://www.nj.com/traffic/2019/12/nj-transit-trains-are-the-nations-worst-again-feds-say.html]
+
 <br>
+
+```{r ReadbackgroundPic, echo=FALSE,fig.height = 2,out.width = '75%',fig.align = 'center',fig.cap='Figure 2. A NJ Transit train disabled by a fire at the Princeton Junction'}
+knitr::include_graphics("delayBackground.jfif")
+```
 <br>
+A main reason for train delays is high passenger flows that exceed station capacity in particular space-times. But the current train dispatch system cannot foresee train delays long ahead of schedule and therefore cannot take action accordingly. With our prediction algorithm, once the transit company predicts, 2 hours ahead of schedule, that a long delay will occur, they can take measures in real time to mitigate the situation, e.g., adjusting train speeds, or directing more staff to assist passenger movement in the station. Furthermore, our algorithm can reveal the primary factors leading to train delays, based on which to improve the entire transit network.
+
+<br>
+```{r ReadbackgroundPic2, echo=FALSE,fig.height = 1,out.width = '75%',fig.align = 'center', fig.cap = 'Figure 3. Use case of our predicting algorithm'}
+knitr::include_graphics("USECASECONCEPT.png")
+```
+<br>
+
+### 2. Exploring and wrangling data
+
 This early-stage model employs a data-set that contains information of *every departure*, including line, station and departure, and scheduled and actual time of departure, from September to October in 2019.
 ^[Data-set on Kaggle: https://www.kaggle.com/pranavbadami/nj-transit-amtrak-nec-performance] 
 In this section, we explore the date-set to find patterns and wrangle the data for model building.
@@ -980,105 +965,9 @@ First, we try an Ordinary Least Square baseline model that takes *delay length* 
 3. *Operation factors*, i.e., weather, direction, and stop sequence.
 4. *Time lag features*, i.e., line delay, station delay, and same-train previous delay.
 
-```{r models for BBseline,warning=FALSE, message=FALSE,results='hide'}
-# Baseline
-reg2hBaseline = lm(delay ~ 
-               stop_sequence + to + line + lagDelay + stationDelay +
-               lag1StationDelay + lag2StationDelay + lagDelayDayPlus +
-               hour + dayOfWeek + precip + stationHour10Tile + distFirstStation + direction,
-             data = trainsTrain)
-
-trainsTestBaseLine = trainsTest %>%
-  mutate(predict2hBaseline = predict(reg2hBaseline, newdata = trainsTest),
-         absError2hBaseline = abs(delay - predict2hBaseline))%>%
-  st_drop_geometry()%>%
-  dplyr::select(absError2hBaseline,line,delay,predict2hBaseline)
-```
-
 *How good is this model?* Figure 10. shows by scatter plot the relationship between the *predicted* delays and the *actual delays*, and Figure 11. plots the the differences between the predicted and actual delays for groups of short, median or long delays. It is evident that this baseline model 
 
-```{r plot model for BBaseline, message=FALSE, warning=FALSE,fig.height=4,out.width='50%',fig.align='center'}
-MAEForBaseline <- mean(trainsTestBaseLine$absError2hBaseline, na.rm = T)%>%as.data.frame()
-trainsTestBaseLine%>%sample_n(30000)%>%
-ggplot() +
-  geom_point(aes(x = delay, y = predict2hBaseline), size = 0.1,color = palette1_main) +
-  geom_text(data = MAEForBaseline,aes(label = paste("MAE =", round(., 2))),x=-Inf, y=Inf, vjust = 2, hjust = -.5,size=4) +
-  geom_abline(slope = 1, intercept = 0, colour = palette1_assist,size=1)+
-  labs(
-    x="Actual Delay",y="Predicted Delay",
-    title = "",
-    subtitle = "") +
-  plotTheme()
-
-```
-
-```{r MAE by tile for BBseline,message=FALSE, warning=FALSE,results='hide'}
-trainsTestBaseLine = trainsTestBaseLine %>%
-  mutate(tile = case_when(delay < 20 ~ "<20 min",
-                          delay < 40 ~ "20~40 min",
-                          delay < 60 ~ "40~60 min",
-                          delay < 80 ~ "60~80 min",
-                          delay <= 100 ~ "80~100 min",
-                          TRUE ~ ">100 min") %>%
-           factor(, levels = c("<20 min", "20~40 min",
-                               "40~60 min", "60~80 min",
-                               "80~100 min", ">100 min")))
-
-byTile = 
-  trainsTestBaseLine %>%
-  group_by(tile) %>%
-  summarize(meanObs = mean(delay, na.rm = T),
-            meanPredLong = mean(predict2hBaseline, na.rm = T)) %>%
-  gather(variable, value, -tile) %>%
-  mutate(variable = recode(variable,
-                        "meanObs" = "Observed",
-                        "meanPred" = "Predicted"))
-```
-
-
-```{r MAE by tile2 for BBseline,message=FALSE, warning=FALSE,fig.height = 4,out.width = '50%',fig.align = 'center',results='hide'}
-byTile %>%
-  ggplot(aes(tile, value, shape = variable)) +
-  geom_point(size = 2,color=palette1_main) +
-  geom_path(aes(group = tile), color = palette1_assist) +
-  scale_shape_manual(values = c(2, 17), name = "") +
-  labs(x = 'Actual mean delay', y = 'Predicted mean delay') +
-  plotTheme() +
-  theme(legend.position = "bottom")
-  theme(axis.text.x = element_text(angle = 90, size = 20, vjust = 0.5, hjust = 1))
-```
-
-```{r MAE by line3, message=FALSE, warning=FALSE}
-byLine0 = 
-  trainsTestBaseLine %>%
-  group_by(line) %>%
-  summarize(MAE2h = mean(absError2hBaseline, na.rm = T))
-
-
-byLine = lines %>%
-  left_join(byLine0, by = 'line')%>%
-  dplyr::select(line, MAE2h)
-```
-
-```{r MAE by line4,message=FALSE, warning=FALSE,fig.height = 6,out.width = '75%',fig.align = 'center'}
-byLine %>%
-  ggplot() +
-  geom_sf(data = st_union(njCounties),
-          color='black', size=1.5, fill = NA)+
-  geom_sf(data = njCounties,
-          color= 'black', size=0.5,linetype = 'dashed', fill = NA) +
-  geom_sf(aes(color = MAE2h), size = 1.5) +
-  scale_color_gradient(high = brightRed, low = darkBlue, name = '') +
-  mapTheme()+
-  theme(legend.position = "bottom",
-        legend.key.width = unit(2, 'cm'),
-        legend.key.height = unit(1, 'cm'))
-```
-
-
 ```{r models,warning=FALSE, message=FALSE,results='hide'}
-trainsTrain <- trainsTrain%>%filter(line!="Atl. City Line")
-trainsTest <- trainsTest%>%filter(line!="Atl. City Line")
 
 # Baseline
 reg2hBaseline = lm(delay ~ 
@@ -1181,20 +1070,20 @@ ggplot(trainsTrain) +
 Since the outcome distribution is heavily skewed. A logit transformation should work well here. 
 
 ```{r late-or-not logit reg, message=FALSE, warning=FALSE}
-trainsTrain = trainsTrain %>%
+trainsTrain2 = trainsTrain %>%
   mutate(late = ifelse(delay > 5, 1, 0))
-trainsTest = trainsTest %>%
+trainsTest2 = trainsTest %>%
   mutate(late = ifelse(delay > 5, 1, 0))
 lateOrNot = glm(late ~ 
                   stop_sequence + to + line + lagDelay + stationDelay +
                   lag1StationDelay + lag2StationDelay + lagDelayDayPlus +
                   hour + dayOfWeek + precip + stationHour10Tile + distFirstStation + direction,
-                data = trainsTrain,
+                data = trainsTrain2,
                 family="binomial" (link="logit"))
 
 lateProbs = data.frame(
-  outcome = as.factor(trainsTest$late),
-  probs = predict(lateOrNot, trainsTest, type = 'response'))
+  outcome = as.factor(trainsTest2$late),
+  probs = predict(lateOrNot, trainsTest2, type = 'response'))
 ```
 
 ```{r logit results plot, message=FALSE, warning=FALSE,fig.height=4,out.width='50%',fig.align='center'}
@@ -1222,8 +1111,7 @@ reg2hLnSqSMALLDELAYS = lm(sqDelay ~
                  data = trainsTrain %>% filter(., delay <= 30))
 
 trainsTest = trainsTest %>%
-  mutate(sqPredict2hSqSMALLDELAYS = 
-           predict(reg2hLnSqSMALLDELAYS, newdata = trainsTest),
+  mutate(sqPredict2hSqSMALLDELAYS = predict(reg2hLnSqSMALLDELAYS, newdata = trainsTest),
          predict2hSqSMALLDELAYS = sqPredict2hSqSMALLDELAYS ^ 2)
 
 trainsTest = trainsTest %>%
@@ -1333,7 +1221,7 @@ finalComparison = trainsTest %>%
            predLong = predict2hSelectionModel,
            absErrLong = absError2hSeg,) %>%
     dplyr::select(date, train, station = to, line, GEOID,
-                  week, hour, dayOfWeek, obs, predLong, absErrLong)
+                  week, hour, dayOfWeek, obs, predLong, absErrLong,stationHour10Tile)
 
 byStationByWeek = 
   finalComparison %>%
@@ -1511,7 +1399,6 @@ byTile %>%
 ```
 
 ### 6 Use Case
-
 
 ```{r ReadGif for NJ transit, echo=FALSE,fig.height = 6,out.width = '75%',fig.align = 'center'}
 knitr::include_graphics("./wireframe/01.jpg")
