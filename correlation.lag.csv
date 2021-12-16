@@ -1,0 +1,6 @@
+Variable,correlation
+lag1StationDelay,0.28
+lag2StationDelay,0.29
+lagDelay,0.26
+lagDelayDayPlus,0.65
+stationDelay,0.26
