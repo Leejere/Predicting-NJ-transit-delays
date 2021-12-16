@@ -155,7 +155,7 @@ palette1_main <- "#F2727F"
 palette1_assist <- '#F9B294'
 ```
 
-### 1. Use case: What's it for?
+### 1 Use case: What's it for?
 
 **This project aims to predict train delays 2 hours ahead of schedule for New Jersey Transit.** Railway transit an integral part of metropolitan mobility. Covering a service area of 5,325 square miles, New Jersey Transit is the largest statewide public transit system and the third-largest provider of bus, rail, and light rail transit in the United States.
 ^[New Jersey Transit website: https://www.njtransit.com/our-agency/about-us]
@@ -261,15 +261,15 @@ lines = rbind(
 )
 ```
 
-```{r stations_exploratory_plot2,fig.height = 5,message = FALSE, warning = FALSE, results='hide',out.width = '75%',fig.align = 'center',fig.cap = 'Figure 1. Locations of New Jersey Transit stations'}
+```{r stations_exploratory_plot2,fig.height = 5,message = FALSE, warning = FALSE, results='hide',out.width = '75%',fig.align = 'center',fig.cap = 'Figure 1. Locations of New Jersey Transit Lines'}
 base_map <- get_map(location = unname(st_bbox(ll(st_buffer(st_union(njCounties),11000)))),maptype = "terrian")
 
 ggmap(base_map) + 
   geom_sf(data=ll(st_union(njCounties)),color="black",size=1.2,fill = "transparent",inherit.aes = FALSE)+
   geom_sf(data=ll(njCounties),color="black",size=0.5,linetype ="dashed",fill = "transparent",inherit.aes = FALSE)+
-  geom_sf(data=ll(lines),size=1.5,color=palette1_main,inherit.aes = FALSE)+
-  labs(title = "Map of NJ Transit Railway Stations", 
-       subtitle = "Red dots are stations",
+  geom_sf(data=ll(lines),size=1,color=palette1_main,inherit.aes = FALSE)+
+  labs(title = "Map of NJ Transit Railway Lines", 
+       subtitle = "",
        x="",y="")+
   mapTheme()
 
@@ -280,7 +280,7 @@ But this system faces serious operation issues: according to Federal Transit Adm
 
 <br>
 
-```{r ReadbackgroundPic, echo=FALSE,fig.height = 2,out.width = '75%',fig.align = 'center',fig.cap='Figure 2. A NJ Transit train disabled by a fire at the Princeton Junction'}
+```{r ReadbackgroundPic, echo=FALSE,fig.height = 2,out.width = '60%',fig.align = 'center',fig.cap='Figure 2. A NJ Transit train disabled by a fire at the Princeton Junction'}
 knitr::include_graphics("delayBackground.jfif")
 ```
 <br>
@@ -292,7 +292,7 @@ knitr::include_graphics("USECASECONCEPT.png")
 ```
 <br>
 
-### 2. Exploring and wrangling data
+### 2 Exploring and wrangling data
 
 This early-stage model employs a data-set that contains information of *every departure*, including line, station and departure, and scheduled and actual time of departure, from September to October in 2019.
 ^[Data-set on Kaggle: https://www.kaggle.com/pranavbadami/nj-transit-amtrak-nec-performance] 
@@ -384,7 +384,7 @@ TrainIDforDifDay = trains%>%
   dplyr::select(scheduled_time,train_id,from,to,line)
 TrainIDforDifDay = TrainIDforDifDay[1:5,]
 ```
-
+<br>
 ```{r table1 for illustrate trainID and express line, echo=FALSE,fig.height=1, results='asis'}
 kable(trainIDforWholeTrip,align = 'c',caption = '<center>Table 1. trainID for a whole trip</center>')%>%
   kable_classic(full_width = T)%>%
@@ -392,7 +392,8 @@ kable(trainIDforWholeTrip,align = 'c',caption = '<center>Table 1. trainID for a 
   column_spec(2, bold = T,color = palette1_assist)%>%
   column_spec(3, bold = T,color = palette1_main)
 ```
-
+<br>
+<br>
 ```{r table2 for illustrate trainID and express line, echo=FALSE,fig.height=1, results='asis'}
 kable(difTrainIDs,align = 'c',caption = '<center>Table 2. Different TrainIDs within the same day & Express or normal lines</center>')%>%
   kable_classic(full_width = T)%>%
@@ -401,7 +402,8 @@ kable(difTrainIDs,align = 'c',caption = '<center>Table 2. Different TrainIDs wit
   row_spec(2, bold = T,color = palette1_main)%>%
   row_spec(3, bold = T,color = palette1_main)
 ```
-
+<br>
+<br>
 ```{r table3 for illustrate trainID and express line, echo=FALSE,fig.height=1, results='asis'}
 kable(TrainIDforDifDay,align = 'c',caption = '<center>Table 3. TrainID is allocated for the specific time slot everyday</center>')%>%
   kable_classic(full_width = T)%>%
@@ -409,12 +411,14 @@ kable(TrainIDforDifDay,align = 'c',caption = '<center>Table 3. TrainID is alloca
   column_spec(2, bold = T,color = palette1_main)%>%
   column_spec(1,bold = T,color = palette1_assist)
 ```
+<br>
+<br>
 
 #### 2.2 Delays by line and station
 
 Average time of delay varies across different lines and stations. Figure 4. shows the average delay of each line, and Figure 5. plots the average delay of each station on each line. These plots suggest that the line and station are important factors for the prediction of delays. The Atlantic City Line, apart from being physically detached, is also an outlier with the average delay length about four times that of the other lines.
 
-```{r Average delay time,message = FALSE, warning = FALSE, results='hide'}
+```{r Average delay time,message = FALSE, warning = FALSE, results='hide',fig.height = 4,out.width = '75%',fig.align = 'center'}
 # Average delay time for different train lines
 plot1 <- trainsWithGeometry%>%
   st_drop_geometry()%>%
@@ -445,14 +449,16 @@ byLine2 = lines %>%
   geom_sf(data=njCounties,color="black",size=0.5,linetype ="dashed",fill = "transparent")+
   geom_sf(aes(color=averageDelay),alpha=0.7,size=.75)+
   scale_color_gradient(high = brightRed, low = darkBlue, name = '') +
-  labs(title = "",x="Stations",y="")+
+  labs(title = "",x="Lines",y="")+
   mapTheme(5,10)+
-  theme(legend.position = "none")
+  theme(legend.position = "right",
+        legend.key.width = unit(.3, 'cm'),
+        legend.key.height  = unit(.5, 'cm'))
 
 grid.arrange(plot1, byLine2,ncol=2,top = paste("All Lines"," Spatial Delay Distribution",sep = ""))
 ```
-
-
+<br>
+<br>
 ```{r Average delay time2,message = FALSE, warning = FALSE, results='hide',eval=FALSE}
 # Average delay time for different train stations within the same line
 linelist <- unique(trainsWithGeometry$line)
@@ -503,6 +509,8 @@ ggsave(path="../geo",paste(i,"geo.png",sep = ""),g)}
 ```{r ReadGif for alllines, echo=FALSE,fig.height = 3,out.width = '75%',fig.align = 'center'}
 knitr::include_graphics("allLines.gif")
 ```
+<br>
+<br>
 
 #### 2.3 Serial autocorrelation and time lag features
 
@@ -571,7 +579,7 @@ ggsave(path="../temporal",paste(i,j,"_temporal.png",sep = "_"),g)}}
 #         image_write("../temporal/select") # write to current dir
 ```
 
-```{r ReadGif for alltemporal, echo=FALSE,fig.height = 6,out.width = '75%',fig.align = 'center'}
+```{r ReadGif for alltemporal, echo=FALSE,fig.height = 6,out.width = '100%',fig.align = 'center',fig.cap="Average train delays of each line by the progression of time"}
 knitr::include_graphics("alltemporal.gif")
 ```
 
@@ -995,6 +1003,56 @@ To avoid under-predicting long delays, we make the following adjustment to the B
 
 Figure 14. exhibits the relationship between *actual delay* and *absolute prediction error* of the above-mentioned four models: 1) Baseline, 2) Logarithmic Transformation, 3) Square-Root Transformation to Dependent Variable, and 4) Square-Root Transformation to Dependent and Independent Variables. Table 4. summarizes the MAE (mean absolute error) corresponding to these four models. By applying square-root transformations to predictors, the fourth model does not perform better than the third model, which applyes a square-root transformation only to the dependent variable.
 
+```{r models for BBseline,warning=FALSE, message=FALSE,results='hide'}
+# Baseline
+reg2hBaseline = lm(delay ~ 
+               stop_sequence + to + line + lagDelay + stationDelay +
+               lag1StationDelay + lag2StationDelay + lagDelayDayPlus +
+               hour + dayOfWeek + precip + stationHour10Tile + distFirstStation + direction,
+             data = trainsTrain)
+
+trainsTestBaseLine = trainsTest %>%
+  mutate(predict2hBaseline = predict(reg2hBaseline, newdata = trainsTest),
+         absError2hBaseline = abs(delay - predict2hBaseline))%>%
+  st_drop_geometry()%>%
+  dplyr::select(absError2hBaseline,line,delay,predict2hBaseline)
+```
+
+```{r MAE by tile for BBseline,message=FALSE, warning=FALSE,results='hide'}
+trainsTestBaseLine = trainsTestBaseLine %>%
+  mutate(tile = case_when(delay < 20 ~ "<20 min",
+                          delay < 40 ~ "20~40 min",
+                          delay < 60 ~ "40~60 min",
+                          delay < 80 ~ "60~80 min",
+                          delay <= 100 ~ "80~100 min",
+                          TRUE ~ ">100 min") %>%
+           factor(, levels = c("<20 min", "20~40 min",
+                               "40~60 min", "60~80 min",
+                               "80~100 min", ">100 min")))
+
+byTile = 
+  trainsTestBaseLine %>%
+  group_by(tile) %>%
+  summarize(meanObs = mean(delay, na.rm = T),
+            meanPredLong = mean(predict2hBaseline, na.rm = T)) %>%
+  gather(variable, value, -tile) %>%
+  mutate(variable = recode(variable,
+                        "meanObs" = "Observed",
+                        "meanPred" = "Predicted"))
+```
+
+```{r MAE by tile2 for BBseline,message=FALSE, warning=FALSE,fig.height = 4,out.width = '50%',fig.align = 'center',results='hide'}
+byTile %>%
+  ggplot(aes(tile, value, shape = variable)) +
+  geom_point(size = 2,color=palette1_main) +
+  geom_path(aes(group = tile), color = palette1_assist) +
+  scale_shape_manual(values = c(2, 17), name = "") +
+  labs(x = 'Actual mean delay', y = 'Predicted mean delay') +
+  plotTheme() +
+  theme(legend.position = "bottom")
+  theme(axis.text.x = element_text(angle = 90, size = 20, vjust = 0.5, hjust = 1))
+```
+
 ```{r models,warning=FALSE, message=FALSE,results='hide'}
 
 # Baseline
@@ -1058,25 +1116,25 @@ ErrComparison <- trainsTest%>%
             SqrtDepIndep=mean(absError2hSqSSq,na.rm=T))
 ```
 
-
 ```{r models comparison, message=FALSE, warning=FALSE,fig.width=7,fig.height=7,out.width='60%',fig.align = 'center'}
 trainsTest%>%
-  dplyr::select(delay,starts_with("absError"))%>%
+  dplyr::select(delay,predict2hBaseline,predict2hLog,predict2hSq,predict2hSqSSq)%>%
   st_drop_geometry()%>%
   gather(Variable, Value, -delay)%>%
-  filter(Variable != 'absError2hSeg')%>%
   mutate(Variable=recode(Variable,
-                         "absError2hBaseline" = 'BaseLine',
-                         "absError2hLog" = "Log DEP Var",
-                         "absError2hSq" = 'Sqrt DEP Var',
-                         "absError2hSqSSq" = 'Sqrt DEP & IND Var')%>%
+                         "predict2hBaseline" = 'BaseLine',
+                         "predict2hLog" = "Log DEP Var",
+                         "predict2hSq" = 'Sqrt DEP Var',
+                         "predict2hSqSSq" = 'Sqrt DEP & IND Var')%>%
            factor(., levels = c('BaseLine','Log DEP Var','Sqrt DEP Var','Sqrt DEP & IND Var')))%>%
   ggplot() +
   geom_point(aes(x = delay, y = Value),size=.1,color=palette1_main) +
+  geom_abline(slope = 1, intercept = 0, colour = palette1_assist,size=1)+
   facet_wrap(~Variable,scales = "free",ncol=2)+
-  labs(x="Delay",y="Error",title = "")+
+  labs(x="Delay",y="Predicted",title = "")+
   plotTheme()
 ```
+
 
 ```{r models table,fig.height=1, results='asis'}
 ErrComparison = ErrComparison%>%rename('Log Transform'='LogTrans','Sqrt DEP Var'='SqrtDep','Sqrt DEP & IND Vars'='SqrtDepIndep')
@@ -1085,6 +1143,9 @@ kable(ErrComparison,align = 'c',caption = '<center>Table 4. MAEs for the four li
   kable_styling(position = "center")%>%
   row_spec(0, bold = T,color = palette1_main)
 ```
+<br>
+<br>
+
 
 #### 4.3 Separate model for Small Delays
 
@@ -1336,7 +1397,8 @@ ggplot(data=CVResultLogit,aes(date, Value)) +
 
 Figure 18. Shows the MAE of the linear model for each station during the two weeks in the test set. We also calculate the MAE of each station by day of week (Figure 19.) and hour of day (Figure 20.) The results suggest that the generalizability of the linear model is generally acceptable, but that it generalizes better for weekdays and during daytime.
 
-```{r MAE by station by week, message=FALSE, warning=FALSE,fig.height = 6,out.width='75%',fig.align='center'}
+
+```{r MAE by station by week, message=FALSE, warning=FALSE,fig.height = 5,out.width='75%',fig.align='center'}
 finalComparison = trainsTest %>%
     mutate(obs= delay,
            predLong = predict2hSelectionModel,
@@ -1353,15 +1415,19 @@ byStationByWeek =
 byStationByWeek %>%
   ggplot() +
   geom_sf(data = st_union(njCounties),
-          color='black', size=1.5, fill = NA)+
+          color='black', size=1, fill = NA)+
   geom_sf(data = njCounties,
           color= 'black', size=0.5,linetype = 'dashed', fill = NA) +
-  geom_sf(aes(color = MAE2h), size = 0.6) +
+  geom_sf(aes(color = MAE2h), size = 0.8) +
   scale_color_gradient(high = brightRed, low = darkBlue) +
   facet_wrap(~week) +
   mapTheme() +
-  theme(legend.position = "bottom",panel.spacing = unit(6, 'lines'))
+  theme(legend.position = "bottom",panel.spacing = unit(6, 'lines'),
+          legend.key.width = unit(.5, 'cm'),
+        legend.key.height  = unit(.2, 'cm'))
 ```
+<br>
+<br>
 
 ```{r MAE by station by day of week, eval=FALSE, message=FALSE, warning=FALSE,fig.height = 4,out.width='75%',fig.align='center'}
 byStationByDayOfWeek = 
@@ -1408,6 +1474,8 @@ anim_save("byStationByDayOfWeekAnimation.gif", byStationByDayOfWeekAnimation,
 ```{r ReadGif for byStationByDayOfWeek, echo=FALSE,fig.height = 3,out.width = '50%',fig.align = 'center'}
 knitr::include_graphics("byStationByDayOfWeekAnimation.gif")
 ```
+<br>
+<br>
 
 ```{r MAE by hour, eval=FALSE, message=FALSE, warning=FALSE,fig.height = 4,out.width='75%',fig.align='center'}
 byStationByHour = 
@@ -1446,6 +1514,8 @@ anim_save("byStationByHourAnimation.gif", byStationByHourAnimation,
 ```{r ReadGif for byStationByHour, echo=FALSE,fig.height = 3,out.width = '50%',fig.align = 'center'}
 knitr::include_graphics("byStationByHourAnimation.gif")
 ```
+<br>
+<br>
 
 By calculating the MAE of each line (Figure 21.), we find that the linear model generalizes well across lines. Although the MAE of the Atlantic City Line is significantly higher, the result is still acceptable if we consider that the average delay of this line is four times that of other lines in the first place.
 
@@ -1462,20 +1532,23 @@ byLine = lines %>%
   dplyr::select(line, MAE2h)
 ```
 
-```{r MAE by line2,message=FALSE, warning=FALSE,fig.height = 6,out.width = '75%',fig.align = 'center'}
+
+```{r MAE by line2,message=FALSE, warning=FALSE,fig.height = 5,out.width = '75%',fig.align = 'center'}
 byLine %>%
   ggplot() +
   geom_sf(data = st_union(njCounties),
-          color='black', size=1.5, fill = NA)+
+          color='black', size=1, fill = NA)+
   geom_sf(data = njCounties,
           color= 'black', size=0.5,linetype = 'dashed', fill = NA) +
-  geom_sf(aes(color = MAE2h), size = 1.5) +
+  geom_sf(aes(color = MAE2h), size = 0.8) +
   scale_color_gradient(high = brightRed, low = darkBlue, name = '') +
   mapTheme()+
   theme(legend.position = "bottom",
-        legend.key.width = unit(2, 'cm'),
-        legend.key.height = unit(1, 'cm'))
+          legend.key.width = unit(.5, 'cm'),
+        legend.key.height  = unit(.2, 'cm'))
 ```
+<br>
+<br>
 
 #### 5.3 Generalizability by short and long delays
 
@@ -1527,30 +1600,21 @@ A New Jersey Transit operator could easily view whether a train is predicted to 
 
 Once the operator identifies the delayed trains, measures can be taken to mitigate the situation, e.g., by adjusting train speeds or directing more staff to accelerate passenger flows at the delayed stations (Figure 26.). The operator can first model the potential effects of these measures before making the decision (Figure 27.)
 
+<br>
+<br>
+
 ```{r ReadGif for NJ transit, echo=FALSE,fig.height = 6,out.width = '75%',fig.align = 'center'}
-knitr::include_graphics("./wireframe/01.jpg")
+knitr::include_graphics("NJ-transitPart1.gif")
 ```
 
+<br>
+<br>
 ```{r ReadGif for NJ transit2, echo=FALSE,fig.height = 6,out.width = '75%',fig.align = 'center'}
-knitr::include_graphics("./wireframe/02.jpg")
+knitr::include_graphics("NJ-transitPart2.gif")
 ```
 
+<br>
+<br>
 ```{r ReadGif for NJ transit3, echo=FALSE,fig.height = 6,out.width = '75%',fig.align = 'center'}
-knitr::include_graphics("./wireframe/03.jpg")
-```
-
-```{r ReadGif for NJ transit4, echo=FALSE,fig.height = 6,out.width = '75%',fig.align = 'center'}
-knitr::include_graphics("./wireframe/04.jpg")
-```
-
-```{r ReadGif for NJ transit5, echo=FALSE,fig.height = 6,out.width = '75%',fig.align = 'center'}
-knitr::include_graphics("./wireframe/05.jpg")
-```
-
-```{r ReadGif for NJ transit6, echo=FALSE,fig.height = 6,out.width = '75%',fig.align = 'center'}
-knitr::include_graphics("./wireframe/06.jpg")
-```
-
-```{r ReadGif for NJ transit7, echo=FALSE,fig.height = 6,out.width = '75%',fig.align = 'center'}
-knitr::include_graphics("./wireframe/07.jpg")
+knitr::include_graphics("NJ-transitPart3.gif")
 ```
