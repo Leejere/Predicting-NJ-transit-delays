@@ -1,5 +1,5 @@
 ---
-title: "Forecast Metro train delays for NJ Transit"
+title: "<i><b>Delayed Early:</b></i> <br />Predicting New Jersey Transit Delays"
 author: "Jie Li, Xiong Zheng"
 date: "12/10/2021"
 output:
@@ -148,21 +148,39 @@ palette1_main <- "#F2727F"
 palette1_assist <- '#F9B294'
 ```
 
-### 1. Motivation
+### 1. Use case: What's it for?
 
-Railway is an important mode of long-distance passenger transport in US. In 2018, number of passengers carried by railways for United States of America was 31,962.7 million passenger-km. New Jersey Transit Corporation, branded as NJ Transit, is a state-owned public transportation system that serves the US state of New Jersey, along with portions of New York State and Pennsylvania. Covering a service area of 5,325 square miles (13,790 km2), NJ Transit is the largest statewide public transit system and the third-largest provider of bus, rail, and light rail transit by ridership in the United States. The important role of railway transport in national economy and citizen benefits has attracted wide-spread attention from both academic and industrial fields.
+**This project aims to predict train delays 2 hours ahead of schedule for New Jersey Transit.** Railway transit an integral part of metropolitan mobility. Covering a service area of 5,325 square miles, New Jersey Transit is the largest statewide public transit system and the third-largest provider of bus, rail, and light rail transit in the United States.
+^[New Jersey Transit website: https://www.njtransit.com/our-agency/about-us]
+Figure 1. shows the location of each New Jersey Transit station. The network consists of radial lines centered around Jersey City, Newark, and New York, with the exception of the Atlantic City Line which runs between Atlantic City and Philadelphia and is detached from the main network.
 
-```{r ReadbackgroundPic, echo=FALSE,fig.height = 2,out.width = '75%',fig.align = 'center',fig.cap='A NJ Transit train disabled by a fire at the Princeton Junction in West Windsor in this 2018 file photo.Ed Murray | NJ Advance Media for'}
+```{r stations_exploratory_plot,fig.height = 5,message = FALSE, warning = FALSE, results='hide',out.width = '75%',fig.align = 'center', fig.cap = 'Figure 1. Locations of New Jersey Transit stations'}
+## use line; rid of axis titles
+base_map <- get_map(location = unname(st_bbox(ll(st_buffer(st_union(njCounties),11000)))),maptype = "terrian")
+
+ggmap(base_map) + 
+  geom_sf(data=ll(st_union(njCounties)),color="black",size=1.5,fill = "transparent",inherit.aes = FALSE)+
+  geom_sf(data=ll(njCounties),color="black",size=0.5,linetype ="dashed",fill = "transparent",inherit.aes = FALSE)+
+  geom_sf(data=ll(njStations),size=1.75,color=palette1_main,inherit.aes = FALSE)+
+  labs(title = "Map of NJ Transit Railway Stations", 
+       subtitle = "Red dots are stations")+
+  mapTheme()
+
+```
+
+But this system faces serious operation issues: according to Federal Transit Administration data, New Jersey Transit broke down more than more than any other system in the nation in 2019, plagued by constant delays and cancellations.
+^[*NJ Transit trains are the nation’s worst again, feds say*, News by NJ.com: https://www.nj.com/traffic/2019/12/nj-transit-trains-are-the-nations-worst-again-feds-say.html]
+
+```{r ReadbackgroundPic, echo=FALSE,fig.height = 2,out.width = '75%',fig.align = 'center',fig.cap='Figure 2. A NJ Transit train disabled by a fire at the Princeton Junction'}
 knitr::include_graphics("delayBackground.jfif")
 ```
 
-However, sadly, NJ Transit trains broke down more than any other system’s in the nation in 2019, ranking the worst in the nation, according to Federal Transit Administration data. Train Delay will not only cause the convenience to people's lives but also cause the financial and social lost to the society. Under this circumstance, for NJ Transit's administration, how to effectively predict and manage the train delay is vital.
+A main reason for train delays is high passenger flows that exceed station capacity in particular space-times. But the current train dispatch system cannot foresee train delays long ahead of schedule and therefore cannot take action accordingly. With our prediction algorithm, once the transit company predicts, 2 hours ahead of schedule, that a long delay will occur, they can take measures in real time to mitigate the situation, e.g., adjusting train speeds, or directing more staff to assist passenger movement in the station. Furthermore, our algorithm can reveal the primary factors leading to train delays, based on which to improve the entire transit network.
 
-```{r ReadbackgroundPic, echo=FALSE,fig.height = 1,out.width = '75%',fig.align = 'center'}
+```{r ReadbackgroundPic, echo=FALSE,fig.height = 1,out.width = '75%',fig.align = 'center', fig.cap = 'Figure 3. Use case of our predicting algorithm'}
 knitr::include_graphics("USECASECONCEPT.png")
 ```
 
-Our model's use case is based on the NJ Transit company. A model to predict delays ahead of schedule by 2 hours will be made toward NJ Transit. These real time predictions will inform the *DELAY* prediction to the administrator of NJ Transit in this way to help them   better dispatch and manage the train resources (for example, redeploy trains and temporarily accelerate the train speed) so that potential long delays could be avoided. Meanwhile, the long-term model results help identifying problems within the transit network.
 
 ```{r geographies&stations, message = FALSE, warning = FALSE, results='hide'}
 # County Geographical data
@@ -220,24 +238,11 @@ njStations[116, 1] = 'broadway fair lawn'
 njStations[132, 1] = 'essex street'
 ```
 
-```{r stations_exploratory_plot,fig.height = 5,message = FALSE, warning = FALSE, results='hide',out.width = '75%',fig.align = 'center'}
-base_map <- get_map(location = unname(st_bbox(ll(st_buffer(st_union(njCounties),11000)))),maptype = "terrian")
+### 2. Exploring and wrangling data
 
-ggmap(base_map) + 
-  geom_sf(data=ll(st_union(njCounties)),color="black",size=1.5,fill = "transparent",inherit.aes = FALSE)+
-  geom_sf(data=ll(njCounties),color="black",size=0.5,linetype ="dashed",fill = "transparent",inherit.aes = FALSE)+
-  geom_sf(data=ll(njStations),size=1.75,color=palette1_main,inherit.aes = FALSE)+
-  labs(title = "Map of NJ Transit Railway Stations", 
-       subtitle = "Red dots are stations")+
-  mapTheme()
-
-```
-
-In the above graph, we can see the geographical distribution of NJ Transit stations are mainly in the north-east of New Jersey, close to New York.
-
-### 2. Exploratory Analysis
-
-Data of NJ Transit Train Delay in September and October of 2019 are used. For further operation, stations' names are standardized. In this section, several exploratory analysis will be done to explained concepts, phenomenons, and patterns.
+This early-stage model employs a data-set that contains information of *every departure*, including line, station and departure, and scheduled and actual time of departure, from September to October in 2019.
+^[Data-set on Kaggle: https://www.kaggle.com/pranavbadami/nj-transit-amtrak-nec-performance] 
+In this section, we explore the date-set to find patterns and wrangle the data for model building.
 
 ```{r read_trains_data, message = FALSE, warning = FALSE, results='hide'}
 # 2019.9
@@ -300,9 +305,9 @@ trainsWithGeometry = trains %>%
   dplyr::select(-joined)
 ```
 
-#### 2.1 What is trainID?
+#### 2.1 Train IDs
 
-When the data set of NJ Transit is firstly obtained, the exact characters of field **"TrainID"** is confusing. To model the prediction, we need to understand the basic unit of rail transportation, TrainID. The following section will emphasize on that to clarify "TrainID". 
+We first explore the nature of Train IDs (`train_id`) in the data-set by demonstrating the following tables. Table 1. shows that train IDs remain constant as the train completes the journey from the first station to the last on a particular line. Next, as Table 2. demonstrates, different trains that run on the same line use different train IDs at different times of the day, and that trains with different IDs may have different starting and terminal stations despite being on the same line. Finally, Table 3 shows that trains on different dates share the same ID if they run on the same line at a specific time of day.
 
 ```{r illustrate trainID and express line,message = FALSE, warning = FALSE, results='hide'}
 # A trainID is for a whole trip
@@ -327,17 +332,15 @@ TrainIDforDifDay = TrainIDforDifDay[1:5,]
 ```
 
 ```{r talbe1 for illustrate trainID and express line, echo=FALSE,fig.height=3,out.width=75%}
-kable(trainIDforWholeTrip,align = 'c',caption = '<center>A trainID for a whole trip</center>')%>%
+kable(trainIDforWholeTrip,align = 'c',caption = '<center>Table 1. A trainID for a whole trip</center>')%>%
   kable_classic(full_width = T)%>%
   kable_styling(position = "center")%>%
   column_spec(2, background = palette1_assist)%>%
   column_spec(3, background = palette1_main)
 ```
 
-From the first table, we can know that a trainID is costatnt for a whole trip, from first station to the last station of the line.
-
 ```{r talbe2 for illustrate trainID and express line, echo=FALSE,fig.height=1.5,out.width=75%}
-kable(difTrainIDs,align = 'c',caption = '<center>Table.Different TrainIDs within the same day & Express or normal lines</center>')%>%
+kable(difTrainIDs,align = 'c',caption = '<center>Table.2 Different TrainIDs within the same day & Express or normal lines</center>')%>%
   kable_classic(full_width = T)%>%
   kable_styling(position = "center")%>%
   column_spec(2, background = palette1_assist)%>%
@@ -345,98 +348,17 @@ kable(difTrainIDs,align = 'c',caption = '<center>Table.Different TrainIDs within
   row_spec(3, background = palette1_main)
 ```
 
-From this table, we can know that for a same transit line, different trainIDs will be used within the same day. And even for the same trainsit line, there are several sublines, which have various initial station, terminal station, and routes.
-
 ```{r talbe3 for illustrate trainID and express line, echo=FALSE,fig.height=1.5,out.width=75%}
-kable(TrainIDforDifDay,align = 'c',caption = '<center>Table.A TrainID is allocated for the specific time slot everyday</center>')%>%
+kable(TrainIDforDifDay,align = 'c',caption = '<center>Table. 3 TrainID is allocated for the specific time slot everyday</center>')%>%
   kable_classic(full_width = T)%>%
   kable_styling(position = "center")%>%
   column_spec(2, background = palette1_assist)%>%
   column_spec(1,background = palette1_main)
 ```
 
-From this table, we can know that a TrainID is allocated for the trains which run at specific same scheduled time everyday with the same route.
+#### 2.2 Delays by line and station
 
-Besides, based on above insights, Should we divide the sublines of every transit line? In theory, detailed sublines may make observation more accurate and prediction more accurate. However, following graph displays the convoluted of the division. About 59 sublines will be needed to distinguish the sublines. That will bring une
-
-```{r distinguish sublines, message = FALSE, warning = FALSE, results='asis', eval = FALSE}
-# Distinguish Express and normal lines
-trains_analysis_subline = trains%>%
-  filter(from != to)%>%
-  filter(from !="secaucus concourse" & to!="secaucus upper lvl")%>%
-  filter(from !="east orange" & to!="brick church")%>%
-  filter(from !="new york penn station" & to!="maplewood")
-
-lineList = unique(trains_analysis_subline$line)
-for (k in lineList) {
-  LineTool = trains_analysis_subline%>%
-    filter(line==k,stop_sequence=="2")%>%
-    arrange(date,train_id)%>%
-    group_by(from,to,train_id)%>%
-    summarise()
-  listFrom = unique(LineTool$from)
-  listTo = unique(LineTool$to)
-  n = 1
-  for (i in listFrom){
-    for (j in listTo) {
-      EvLine = filter(LineTool,from==i & to==j)
-      listTrainID = unique(EvLine$train_id)
-      if (length(listTrainID>0)){
-        trains_analysis_subline = trains_analysis_subline%>%mutate(line = case_when(train_id %in% listTrainID ~ paste(line,n, sep = "_subline_"),TRUE ~ line))
-        print(c(n,i,j))
-        n = n+1}}}}
-
-trains_analysis_subline <- as.data.frame(unique(trains_analysis_subline$line))%>%
-  rename("sublineList" = "unique(trains_analysis_subline$line)")%>%
-  arrange(sublineList)
-
-i=1
-a=1
-tableForSublines <- data.frame(matrix(NA,nrow=10))
-tmp1  <- trains_analysis_subline[c(1:3),]
-tmp2  <- trains_analysis_subline[c(4:9),]
-tmp3  <- trains_analysis_subline[c(10:14),]
-tmp4  <- trains_analysis_subline[c(15:19),]
-tmp5  <- trains_analysis_subline[20,]
-tmp6  <- trains_analysis_subline[c(21:27),]
-tmp7  <- trains_analysis_subline[c(28:36),]
-tmp8  <- trains_analysis_subline[c(37:43),]
-tmp9  <- trains_analysis_subline[c(44:50),]
-tmp10  <- trains_analysis_subline[c(51:53),]
-tmp11  <- trains_analysis_subline[c(54:59),]
-length(tmp1) = length(c(1:10))
-length(tmp2) = length(c(1:10))
-length(tmp3) = length(c(1:10))
-length(tmp4) = length(c(1:10))
-length(tmp5) = length(c(1:10))
-length(tmp6) = length(c(1:10))
-length(tmp7) = length(c(1:10))
-length(tmp8) = length(c(1:10))
-length(tmp9) = length(c(1:10))
-length(tmp10) = length(c(1:10))
-length(tmp11) = length(c(1:10))
-tableForSublines <- cbind(tableForSublines, tmp5) 
-tableForSublines <- cbind(tableForSublines, tmp10) 
-tableForSublines <- cbind(tableForSublines, tmp1) 
-tableForSublines <- cbind(tableForSublines, tmp3) 
-tableForSublines <- cbind(tableForSublines, tmp4) 
-tableForSublines <- cbind(tableForSublines, tmp2) 
-tableForSublines <- cbind(tableForSublines, tmp11) 
-tableForSublines <- cbind(tableForSublines, tmp6) 
-tableForSublines <- cbind(tableForSublines, tmp8) 
-tableForSublines <- cbind(tableForSublines, tmp9) 
-tableForSublines <- cbind(tableForSublines, tmp7) 
-
-tableForSublines = tableForSublines[1:9,2:12]
-tableForSublines[is.na(tableForSublines)] = ""
-kable(tableForSublines,align = 'c',caption = '<center>Table.XXX')%>%
-  kable_classic(full_width = T)%>%
-  kable_styling(position = "center",font_size = 12)
-```
-
-#### 2.2 Average delay time by lines and by stations
-
-In the following, average delay time for different train lines and different train stations within the same line are respectively plot to analyze the pattern of it. That will give instructions on how to select predictors and models for the delay time...
+Average time of delay varies across different lines and stations. Figure 4. shows the average delay of each line, and Figure 5. plots the average delay of each station on each line. These plots suggest that the line and station are important factors for the prediction of delays. The Atlantic City Line, apart from being physically detached, is also an outlier with the average delay length about four times that of the other lines.
 
 ```{r Average delay time,message = FALSE, warning = FALSE, results='hide',eval=FALSE}
 # Average delay time for different train lines
@@ -522,11 +444,9 @@ list.files(path="./geo",pattern = '*.png', full.names = TRUE) %>%
 knitr::include_graphics("allLines.gif")
 ```
 
-The previous graphs reveals different average delays across lines and stations, suggesting that the line and station are important factors to predict delays. Especially, we find that the Atlantic City Line, which is detached from the main network, is an outlier with an average delay length four times compared to the rest...
+#### 2.3 Serial autocorrelation and time lag features
 
-#### 2.3 Delay time in the scale of time
-
-In the following, delay time, in the scale of time, for different train lines and different train stations within the same line are respectively plot to analyze the periodic pattern of it. That will give instructions on how to select predictors and models for the delay time...
+Figure 6. plots average train delays of each line by the progression of time. Delays exhibit highly regular hourly and daily patterns, suggesting that *time* and *time lag features* are important factors to be incorporated in the model.
 
 ```{r lineChart in the scale of time, message = FALSE, warning = FALSE, results='hide',eval=FALSE}
 monday <-trainsWithGeometry%>%
@@ -595,15 +515,20 @@ list.files(path="./select",pattern = '*.png', full.names = TRUE) %>%
 knitr::include_graphics("alltemporal.gif")
 ```
 
-The above graphs show delays follow periodic cycles of hours and days, suggesting that the hour and day-of-week fixed-effects should be employed in the model. On the other hand, the temporal patterns vary across different stations and lines. Therefore, delay time-lags of the line and station are also included in our model.
+The *time lag features* are essentially the previous delays prior to each scheduled departure. In this model, we use three types time lag features:
 
-### 3 Feature Engineering
+1. *Line delay*. We consider the line as a system in terms of delays where the delay of one train at one point of the line depends on the delay of other trains. Therefore, for every departure, we calculate the delay of every its corresponding *line* (`lagDelay`) at the time of prediction prior to schedule (in this case, 2 hours). 
 
-Firstly, features related to transit operations are added into the models. This engineering mainly comes from THREE parts. Station, line and train.
+2. *Station delay*. For every departure, we calculate the average delay of *the station of departure* of the hour up to the time of prediction prior to schedule (`stationDelay`). We do the same calculations for the previous station (`stationLag1Delay`) and the station previous to that (`stationLag2Delay`).
+
+3. *Same-train previous delay*. For every delay, we also take in the delay of the same train (i.e. having identical train IDs) at the same station for the last time (`lagDelayDayPlus`): usually one day prior, but sometimes multiple days, depending on the frequency of each train.
+
+The correlation of delays with these time lag features are presented in Figure 7.
 
 ```{r feature engineering, eval=FALSE, message=FALSE, warning=FALSE, results='hide'}
-### Delays on this line two hours prior
+
 # Add a field: time of prediction
+
 trains = trains %>%
   mutate(timeOfPrediction = scheduled_time - hours(2))
 
@@ -622,7 +547,8 @@ findLagDelay = function(timeOfPrediction, line, date){
   return(narrowDown[1, 4])
 }
 
-# Add lag delay data
+# Line delay
+
 for(i in 1:nrow(trains)){
   date = trains[i, 'date']
   line = trains[i, 'line']
@@ -634,8 +560,8 @@ for(i in 1:nrow(trains)){
   }
 }
 
+# Station delay
 
-### Station-based average delay (2-hour lag)
 trains = trains %>% filter(., !is.na(stop_sequence))
 stationAvgDelayBase = trains %>% 
   dplyr::select(station = to, actual_time, delay_minutes) %>%
@@ -649,7 +575,7 @@ findAvgStationDelay = function(timeOfPrediction, depStation){
   return(mean(narrowDown$delay_minutes, na.rm = T))
 }
 
-# Add station lag delay data
+# Station delay: this station
 for(i in 1:nrow(trains)){
   depStation = trains[i, 'to']
   timeOfPrediction = trains[i, 'timeOfPrediction']
@@ -660,8 +586,7 @@ for(i in 1:nrow(trains)){
   }
 }
 
-### Delay station average 2 hours lag 1 station
-# Add data
+# Station delay: the previous station
 for(i in 1:nrow(trains)){
   depStation = trains[i, 'from']
   timeOfPrediction = trains[i, 'timeOfPrediction']
@@ -672,7 +597,7 @@ for(i in 1:nrow(trains)){
   }
 }
 
-### Delay station average 2 hours lag 2 stations
+# Station delay: the station previous to the previous station
 lastStation = 
   trains %>%
   dplyr::select(date, train = train_id, sequence = stop_sequence, lag2Station = from) %>%
@@ -685,7 +610,6 @@ trains =
                                 'stop_sequence' = 'sequencePlus')) %>%
   mutate(lag2Station = ifelse(is.na(lag2Station), from, lag2Station))
 
-# Add data
 for(i in 1:nrow(trains)){
   depStation = trains[i, 'lag2Station']
   timeOfPrediction = trains[i, 'timeOfPrediction']
@@ -696,7 +620,7 @@ for(i in 1:nrow(trains)){
   }
 }
 
-### Lag one day
+### Same-train previous delay
 trains = 
   trains %>%
   group_by(train_id, to) %>%
@@ -719,7 +643,7 @@ trains = read.csv('trains.csv') %>% dplyr::select(-X) %>%
          actual_time = ymd_hms(actual_time))
 ```
 
-```{r lag Variables plot, message=FALSE, warning=FALSE, results='hide'}
+```{r lag Variables plot, message=FALSE, warning=FALSE, results='hide', fig.cap = 'Figure 7. Delays as a function of time lag features'}
 lagVarScatter <- trains%>%
   dplyr::select(delay,lagDelay,stationDelay,lag1StationDelay,lag2StationDelay,lagDelayDayPlus)%>%
   gather(Variable, Value, -delay) %>%
@@ -735,17 +659,20 @@ ggplot(lagVarScatter, aes(Value, delay)) +
   geom_smooth(method = "lm", se = FALSE, colour = palette1_main,size=2.5) +
   facet_wrap(~Variable, ncol = 3, scales = "free") +
   labs(
-    x="Lag Trip Count",
-    title = "Rideshare trip count as a function of time lags") +
+    x="Lag Trip Count") +
   plotTheme()
 ```
 
-This line’s delay `lagDelay`, This station’s delay`stationDelay`, Previous station’s delay`lag1StationDelay`, Previous of previous station’s delay`lag2StationDelay`, and previous delay of same train at same station`lagDelayDayPlus` are modeled into the model.
-In the following, Weather data is also added into the model.
+#### 2.4 Other
+
+Weather, especially precipitation, could also be a factor for train delays. We collect weather information corresponding to each departure from the nearest weather station. The correlations between delays and weather features are plotted as scatter plots in Figure 8.
 
 ```{r weather_data,warning=FALSE, message=FALSE, results='hide'}
-# Weather
+
+# Find which network
 network = riem_networks()
+
+# Get weather data
 weatherStations = riem_stations(network = 'NJ_ASOS') %>%
   st_as_sf(coords = c('lon', 'lat'), crs = 4326, agr = 'constant') %>%
   st_transform(crs)
@@ -800,7 +727,7 @@ trains = trains %>%
   st_sf()
 ```
 
-```{r Weather Variables plot, message=FALSE, warning=FALSE, results='hide'}
+```{r Weather Variables plot, message=FALSE, warning=FALSE, results='hide', fig.cap = 'Figure 8. Delays as a function of weather features'}
 weatherVarScatter <- trains%>%
   st_drop_geometry()%>%
   dplyr::select(delay,temp,precip,windSpeed)%>%
@@ -821,7 +748,9 @@ ggplot(weatherVarScatter, aes(Value, delay)) +
   plotTheme()
 ```
 
-Besides, fixed effect indicator, Distance to the first staion of the train, and direction of uptown and downtown are also included in the model.
+Other added features include: time fixed effects (hour of day and day of week), distance to the starting station, and direction. *Direction* may be relevant, because delays may be contingent on whether a train is enter or leaving central city. To determine the direction of each departure, we calculate the distance from *this* station, and that from the previous station, to New York Penn Station; if the train is running nearer to New York Penn Station, then we identify it as "downtown"; otherwise it is "uptown". 
+
+The correlations between delays and these features are shown as scatter plots in Figure 9.
 
 ```{r other features, warning=FALSE, message=FALSE,results='hide',eval=FALSE}
 ### Add time fixed effect
@@ -906,7 +835,7 @@ trains4 = trains4 %>%
 
 ```
 
-```{r other features plot, message=FALSE, warning=FALSE, results='hide'}
+```{r other features plot, message=FALSE, warning=FALSE, results='hide', fig.cap = 'Figure 9. Delays as functions of the other features'}
 trainsFinal = st_read("trains6.GeoJson",crs=crs)
 
 correlation.lag <-
@@ -937,6 +866,7 @@ trainsFinal %>%
   theme(legend.position = "none"))
 ```
 
+A final feature added is the station-hour peak effect. As train delays are more likely to occur in certain stations with high passenger flow and at certain peak hours, we could improve the model by "singling out" those stations and hours. We calculate the average lengths of delay by every station-hour combination, and assign them with their deciles. We join the deciles back to original data-set of departures. Note that when we calculate the deciles, we only employ the training set.
 Furthermore, ten tiles division are introduce into the model. We use `trainsTrain` mean delay to do so
 
 ```{r model prep TEN tile, warning=FALSE, message=FALSE,results='hide'}
@@ -964,9 +894,16 @@ trainsTest = trainsFinal %>%
 
 HERE SHOULD ADD a ten tile kable to see the mean delay of each tile
 
-### 4 Modeling and optimization
+### 4 Building and improving the model
 
-#### 4.1 Baseline models and their transformations
+#### 4.1 Baseline model
+
+The baseline model an Ordinary Least Square linear model that takes *delay length* as the dependent variable and four categories of predictors:
+
+1. *Fixed effects (time)*, i.e., hour of day and day of week.
+2. *Fixed effects (space)*, i.e., line and station.
+3. *Operation factors*, i.e., weather, direction, and stop sequence.
+4. *Time lag features*, i.e., line delay, station delay, and same-train previous delay.
 
 ```{r models,fig.width=8}
 # Baseline

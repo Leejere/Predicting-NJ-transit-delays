@@ -930,7 +930,7 @@ trainsTest = trains6 %>%
                    'hour' = 'hour'))
 ```
 
-```{r baseline models, fig.height = 9, fig.width = 5}
+```{r baseline models, fig.height = 9, fig.width = 9}
 # Baseline
 
 reg2h = lm(delay ~ 
@@ -1526,6 +1526,15 @@ finalComparison = cbind(
 ) %>%
   left_join(counties %>% st_drop_geometry(), by = 'GEOID') %>%
   rename(county = NAMELSAD)
+
+finalComparison1 =
+  trainsTest %>%
+    mutate(obs= delay,
+           pred = predict2hWTileWDir,
+           absErr = absError2hWTileWDir,
+           ) %>%
+    dplyr::select(date, train, station = to, line, GEOID,
+                  week, hour, dayOfWeek, obs, pred, absErr)
   
 ```
 
@@ -1755,8 +1764,19 @@ byLineB %>%
   presentTheme()
 ```
 
-```{r MAE by tile, fig.height = 9, fig.width = 12}
+```{r MAE by tile, fig.height = 9, fig.width = 8}
 finalComparison = finalComparison %>%
+  mutate(tile = case_when(obs < 20 ~ "<20 min",
+                          obs < 40 ~ "20~40 min",
+                          obs < 60 ~ "40~60 min",
+                          obs < 80 ~ "60~80 min",
+                          obs <= 100 ~ "80~100 min",
+                          TRUE ~ ">100 min") %>%
+           factor(, levels = c("<20 min", "20~40 min",
+                               "40~60 min", "60~80 min",
+                               "80~100 min", ">100 min")))
+
+finalComparison1 = finalComparison1 %>%
   mutate(tile = case_when(obs < 20 ~ "<20 min",
                           obs < 40 ~ "20~40 min",
                           obs < 60 ~ "40~60 min",
@@ -1779,6 +1799,17 @@ byTile =
                         'meanPredLong' = '2 hours ahead',
                         'meanPredShort' = '30 minutes ahead')) %>%
   gather(variable, value, -tile, -model) %>%
+  mutate(variable = recode(variable,
+                        "meanObs" = "Observed",
+                        "meanPred" = "Predicted"))
+
+byTile1 = 
+  finalComparison1 %>%
+  group_by(tile) %>%
+  st_drop_geometry() %>%
+  summarize(meanObs = mean(obs, na.rm = T),
+            meanPred = mean(pred, na.rm = T)) %>%
+  gather(variable, value, -tile) %>%
   mutate(variable = recode(variable,
                         "meanObs" = "Observed",
                         "meanPred" = "Predicted"))
@@ -1815,6 +1846,15 @@ byTile %>%
   geom_path(aes(group = tile), color = 'black') +
   scale_shape_manual(values = c(2, 17), name = "") +
   facet_wrap(~model) +
+  labs(x = 'Actual mean delay', y = 'Predicted mean delay') +
+  presentPlotTheme() +
+  theme(axis.text.x = element_text(angle = 90, size = 20, vjust = 0.5, hjust = 1))
+
+byTile1 %>%
+  ggplot(aes(tile, value, shape = variable)) +
+  geom_point(size = 4) +
+  geom_path(aes(group = tile), color = 'black') +
+  scale_shape_manual(values = c(2, 17), name = "") +
   labs(x = 'Actual mean delay', y = 'Predicted mean delay') +
   presentPlotTheme() +
   theme(axis.text.x = element_text(angle = 90, size = 20, vjust = 0.5, hjust = 1))
