@@ -21,22 +21,26 @@ p.caption {
     caption {
       color: grey;
       font-size: 0.8em;
-    } 
+    }
+@font-face{
+  font-family: Helvetica; 
+  src:url('Helvetica.ttf');
+}
 body{
   font-size: 11pt;
-  font-family: Helvatica;
+  font-family: Helvetica;
 }
 h1,h2,h3,h4,h5,h6{
-  font-family: Helvatica;
+  font-family: Helvetica;
 }
 td{
   font-size: 9pt;
-  font-family: Helvatica;
+  font-family: Helvetica;
 }
 th{
   font-size: 0.8em;
-  font-family: Helvatica;
-  color: grey;
+  font-family: Helvetica;
+  color: black;
 }
 </style>
 ---
@@ -77,11 +81,12 @@ library(ggmap)
 library(jsonlite)
 library(magick)
 library(magrittr)
+library(janitor)
 
 root.dir = "https://raw.githubusercontent.com/urbanSpatial/Public-Policy-Analytics-Landing/master/DATA/"
 source("https://raw.githubusercontent.com/urbanSpatial/Public-Policy-Analytics-Landing/master/functions.r")
 
-windowsFonts(font = windowsFont('Helvatica'))
+windowsFonts(font = windowsFont('Helvetica'))
 
 ll <- function(dat, proj4 = 4326){st_transform(dat, proj4)}
 
@@ -124,17 +129,17 @@ mapTheme <- function(base_size = 9, title_size = 10){
     panel.background = element_blank(),
     panel.grid.major = element_blank(),
     panel.grid.minor = element_blank(),
-    panel.border = element_rect(colour = "black", fill=NA, size=.5),
+    panel.border = element_blank(),
     strip.background = element_blank(),
-    strip.text = element_text(family = 'font', size=9),
+    strip.text = element_text(size=base_size),
     axis.title = element_text(family = 'font', size=9),
-    axis.text = element_text(family = 'font', size=7),
-    axis.text.y = element_text(family = 'font', size=7),
+    axis.text = element_blank(),
+    axis.text.y = element_blank(),
     plot.background = element_blank(),
     legend.background = element_blank(),
     legend.title = element_text(family = 'font', colour = "black", face = "italic", size = 9),
     legend.text = element_text(family = 'font', colour = "black", face = "italic", size = 7),
-    strip.text.x = element_text(family = 'font', size = 9),
+    strip.text.x = element_text(size=base_size),
     legend.key.size = unit(.5, 'line')
   )
 }
@@ -151,17 +156,21 @@ palette1_assist <- '#F9B294'
 ### 1. Motivation
 
 Railway is an important mode of long-distance passenger transport in US. In 2018, number of passengers carried by railways for United States of America was 31,962.7 million passenger-km. New Jersey Transit Corporation, branded as NJ Transit, is a state-owned public transportation system that serves the US state of New Jersey, along with portions of New York State and Pennsylvania. Covering a service area of 5,325 square miles (13,790 km2), NJ Transit is the largest statewide public transit system and the third-largest provider of bus, rail, and light rail transit by ridership in the United States. The important role of railway transport in national economy and citizen benefits has attracted wide-spread attention from both academic and industrial fields.
-
-```{r ReadbackgroundPic, echo=FALSE,fig.height = 2,out.width = '75%',fig.align = 'center',fig.cap='A NJ Transit train disabled by a fire at the Princeton Junction in West Windsor in this 2018 file photo.Ed Murray | NJ Advance Media for'}
+<br>
+<br>
+```{r ReadbackgroundPic, echo=FALSE,fig.height = 2,out.width = '50%',fig.align = 'center',fig.cap='A NJ Transit train disabled by a fire at the Princeton Junction in West Windsor in this 2018 file photo.Ed Murray | NJ Advance Media for'}
 knitr::include_graphics("delayBackground.jfif")
 ```
-
+<br>
+<br>
 However, sadly, NJ Transit trains broke down more than any other system’s in the nation in 2019, ranking the worst in the nation, according to Federal Transit Administration data. Train Delay will not only cause the convenience to people's lives but also cause the financial and social lost to the society. Under this circumstance, for NJ Transit's administration, how to effectively predict and manage the train delay is vital.
-
-```{r ReadbackgroundPic, echo=FALSE,fig.height = 1,out.width = '75%',fig.align = 'center'}
+<br>
+<br>
+```{r ReadbackgroundPic2, echo=FALSE,fig.height = 1,out.width = '75%',fig.align = 'center'}
 knitr::include_graphics("USECASECONCEPT.png")
 ```
-
+<br>
+<br>
 Our model's use case is based on the NJ Transit company. A model to predict delays ahead of schedule by 2 hours will be made toward NJ Transit. These real time predictions will inform the *DELAY* prediction to the administrator of NJ Transit in this way to help them   better dispatch and manage the train resources (for example, redeploy trains and temporarily accelerate the train speed) so that potential long delays could be avoided. Meanwhile, the long-term model results help identifying problems within the transit network.
 
 ```{r geographies&stations, message = FALSE, warning = FALSE, results='hide'}
@@ -218,21 +227,67 @@ njStations[107, 1] = 'glen rock main line'
 njStations[114, 1] = 'glen rock boro hall'
 njStations[116, 1] = 'broadway fair lawn'
 njStations[132, 1] = 'essex street'
+
+# Line
+lines = rbind(
+  st_read('https://services6.arcgis.com/M0t0HPE53pFK525U/arcgis/rest/services/NJTransit_Rail_Linea/FeatureServer/0/query?outFields=*&where=1%3D1&f=geojson') %>%
+    st_transform(crs) %>%
+    mutate(line = 'Northeast Corrdr') %>%
+    dplyr::select(line),
+  st_read('https://services6.arcgis.com/M0t0HPE53pFK525U/arcgis/rest/services/NJTransit_Rail_Linea/FeatureServer/6/query?outFields=*&where=1%3D1&f=geojson') %>%
+    st_transform(crs) %>%
+    mutate(line = 'Atl. City Line') %>%
+    dplyr::select(line),
+  st_read('https://services6.arcgis.com/M0t0HPE53pFK525U/arcgis/rest/services/NJTransit_Rail_Linea/FeatureServer/7/query?outFields=*&where=1%3D1&f=geojson') %>%
+    st_transform(crs) %>%
+    mutate(line = 'Bergen Co. Line ') %>%
+    dplyr::select(line),
+  st_read('https://services6.arcgis.com/M0t0HPE53pFK525U/arcgis/rest/services/NJTransit_Rail_Linea/FeatureServer/9/query?outFields=*&where=1%3D1&f=geojson') %>%
+    st_transform(crs) %>%
+    mutate(line = 'Gladstone Branch') %>%
+    dplyr::select(line),
+  st_read('https://services6.arcgis.com/M0t0HPE53pFK525U/arcgis/rest/services/NJTransit_Rail_Linea/FeatureServer/4/query?outFields=*&where=1%3D1&f=geojson') %>%
+    st_transform(crs) %>%
+    mutate(line = 'Main Line') %>%
+    dplyr::select(line),
+  st_read('https://services6.arcgis.com/M0t0HPE53pFK525U/arcgis/rest/services/NJTransit_Rail_Linea/FeatureServer/8/query?outFields=*&where=1%3D1&f=geojson') %>%
+    st_transform(crs) %>%
+    mutate(line = 'Montclair-Boonton') %>%
+    dplyr::select(line),
+  st_read('https://services6.arcgis.com/M0t0HPE53pFK525U/arcgis/rest/services/NJTransit_Rail_Linea/FeatureServer/3/query?outFields=*&where=1%3D1&f=geojson') %>%
+    st_transform(crs) %>%
+    mutate(line = 'Morristown Line') %>%
+    dplyr::select(line),
+  st_read('https://services6.arcgis.com/M0t0HPE53pFK525U/arcgis/rest/services/NJTransit_Rail_Linea/FeatureServer/10/query?outFields=*&where=1%3D1&f=geojson') %>%
+    st_transform(crs) %>%
+    mutate(line = 'No Jersey Coast') %>%
+    dplyr::select(line),
+  st_read('https://services6.arcgis.com/M0t0HPE53pFK525U/arcgis/rest/services/NJTransit_Rail_Linea/FeatureServer/12/query?outFields=*&where=1%3D1&f=geojson') %>%
+    st_transform(crs) %>%
+    mutate(line = 'Pascack Valley') %>%
+    dplyr::select(line),
+  st_read('https://services6.arcgis.com/M0t0HPE53pFK525U/arcgis/rest/services/NJTransit_Rail_Linea/FeatureServer/11/query?outFields=*&where=1%3D1&f=geojson') %>%
+    st_transform(crs) %>%
+    mutate(line = 'Raritan Valley') %>%
+    dplyr::select(line)
+)
 ```
 
 ```{r stations_exploratory_plot,fig.height = 5,message = FALSE, warning = FALSE, results='hide',out.width = '75%',fig.align = 'center'}
 base_map <- get_map(location = unname(st_bbox(ll(st_buffer(st_union(njCounties),11000)))),maptype = "terrian")
 
 ggmap(base_map) + 
-  geom_sf(data=ll(st_union(njCounties)),color="black",size=1.5,fill = "transparent",inherit.aes = FALSE)+
+  geom_sf(data=ll(st_union(njCounties)),color="black",size=1.2,fill = "transparent",inherit.aes = FALSE)+
   geom_sf(data=ll(njCounties),color="black",size=0.5,linetype ="dashed",fill = "transparent",inherit.aes = FALSE)+
-  geom_sf(data=ll(njStations),size=1.75,color=palette1_main,inherit.aes = FALSE)+
+  geom_sf(data=ll(lines),size=1.5,color=palette1_main,inherit.aes = FALSE)+
   labs(title = "Map of NJ Transit Railway Stations", 
-       subtitle = "Red dots are stations")+
+       subtitle = "Red dots are stations",
+       x="",y="")+
   mapTheme()
 
 ```
-
+<br>
+<br>
 In the above graph, we can see the geographical distribution of NJ Transit stations are mainly in the north-east of New Jersey, close to New York.
 
 ### 2. Exploratory Analysis
@@ -309,8 +364,8 @@ When the data set of NJ Transit is firstly obtained, the exact characters of fie
 trainIDforWholeTrip = trains%>%
   filter(train_id == 7824, date == "2019-10-06")%>%
   arrange(date, train_id)%>%
-  dplyr::select(date,train_id,stop_sequence,from,to,line)
-
+  dplyr::select(train_id,stop_sequence,from,to,line)
+trainIDforWholeTrip = trainIDforWholeTrip[1:5,]
 # Different TrainIDs is within the same day & Express or normal lines
 difTrainIDs = trains%>%
   filter(line=="Northeast Corrdr",date=="2019-10-06",stop_sequence=="2")%>%
@@ -326,40 +381,40 @@ TrainIDforDifDay = trains%>%
 TrainIDforDifDay = TrainIDforDifDay[1:5,]
 ```
 
-```{r talbe1 for illustrate trainID and express line, echo=FALSE,fig.height=3,out.width=75%}
-kable(trainIDforWholeTrip,align = 'c',caption = '<center>A trainID for a whole trip</center>')%>%
+```{r talbe1 for illustrate trainID and express line, echo=FALSE,fig.height=1, results='asis'}
+kable(trainIDforWholeTrip,align = 'c',caption = '<center>A trainID for a whole trip</center>',table.attr = "style='width:75%;'")%>%
   kable_classic(full_width = T)%>%
   kable_styling(position = "center")%>%
-  column_spec(2, background = palette1_assist)%>%
-  column_spec(3, background = palette1_main)
+  column_spec(2, bold = T,color = palette1_assist)%>%
+  column_spec(3, bold = T,color = palette1_main)
 ```
 
 From the first table, we can know that a trainID is costatnt for a whole trip, from first station to the last station of the line.
 
-```{r talbe2 for illustrate trainID and express line, echo=FALSE,fig.height=1.5,out.width=75%}
-kable(difTrainIDs,align = 'c',caption = '<center>Table.Different TrainIDs within the same day & Express or normal lines</center>')%>%
+```{r talbe2 for illustrate trainID and express line, echo=FALSE,fig.height=1, results='asis'}
+kable(difTrainIDs,align = 'c',caption = '<center>Table.Different TrainIDs within the same day & Express or normal lines</center>',table.attr = "style='width:75%;'")%>%
   kable_classic(full_width = T)%>%
   kable_styling(position = "center")%>%
-  column_spec(2, background = palette1_assist)%>%
-  row_spec(2, background = palette1_main)%>%
-  row_spec(3, background = palette1_main)
+  column_spec(2, bold = T,color = palette1_assist)%>%
+  row_spec(2, bold = T,color = palette1_main)%>%
+  row_spec(3, bold = T,color = palette1_main)
 ```
 
 From this table, we can know that for a same transit line, different trainIDs will be used within the same day. And even for the same trainsit line, there are several sublines, which have various initial station, terminal station, and routes.
 
-```{r talbe3 for illustrate trainID and express line, echo=FALSE,fig.height=1.5,out.width=75%}
-kable(TrainIDforDifDay,align = 'c',caption = '<center>Table.A TrainID is allocated for the specific time slot everyday</center>')%>%
+```{r talbe3 for illustrate trainID and express line, echo=FALSE,fig.height=1, results='asis'}
+kable(TrainIDforDifDay,align = 'c',caption = '<center>Table.A TrainID is allocated for the specific time slot everyday</center>',table.attr = "style='width:75%;'")%>%
   kable_classic(full_width = T)%>%
   kable_styling(position = "center")%>%
-  column_spec(2, background = palette1_assist)%>%
-  column_spec(1,background = palette1_main)
+  column_spec(2, bold = T,color = palette1_main)%>%
+  column_spec(1,bold = T,color = palette1_assist)
 ```
 
 From this table, we can know that a TrainID is allocated for the trains which run at specific same scheduled time everyday with the same route.
 
-Besides, based on above insights, Should we divide the sublines of every transit line? In theory, detailed sublines may make observation more accurate and prediction more accurate. However, following graph displays the convoluted of the division. About 59 sublines will be needed to distinguish the sublines. That will bring une
+Besides, based on above insights, Should we divide the sublines of every transit line? In theory, detailed sublines may make observation more accurate and prediction more accurate. However, following graph displays the convoluted of the division. About 59 sublines will be needed to distinguish the sublines. That will bring unescessary redudancy.
 
-```{r distinguish sublines, message = FALSE, warning = FALSE, results='asis', eval = FALSE}
+```{r distinguish sublines, message = FALSE, warning = FALSE, results='asis',fig.height=1, results='asis'}
 # Distinguish Express and normal lines
 trains_analysis_subline = trains%>%
   filter(from != to)%>%
@@ -383,7 +438,6 @@ for (k in lineList) {
       listTrainID = unique(EvLine$train_id)
       if (length(listTrainID>0)){
         trains_analysis_subline = trains_analysis_subline%>%mutate(line = case_when(train_id %in% listTrainID ~ paste(line,n, sep = "_subline_"),TRUE ~ line))
-        print(c(n,i,j))
         n = n+1}}}}
 
 trains_analysis_subline <- as.data.frame(unique(trains_analysis_subline$line))%>%
@@ -427,18 +481,21 @@ tableForSublines <- cbind(tableForSublines, tmp8)
 tableForSublines <- cbind(tableForSublines, tmp9) 
 tableForSublines <- cbind(tableForSublines, tmp7) 
 
-tableForSublines = tableForSublines[1:9,2:12]
+tableForSublines = tableForSublines%>%row_to_names(row_number = 1)
+tableForSublines = tableForSublines[1:5,7:12]
 tableForSublines[is.na(tableForSublines)] = ""
-kable(tableForSublines,align = 'c',caption = '<center>Table.XXX')%>%
+
+kable(tableForSublines,align = 'c',caption = '<center>Differnet sublines for NJ Transit</center>',table.attr = "style='width:75%;'")%>%
   kable_classic(full_width = T)%>%
-  kable_styling(position = "center",font_size = 12)
+  kable_styling(position = "center")%>%
+  row_spec(0, bold = T,color = palette1_main)
 ```
 
 #### 2.2 Average delay time by lines and by stations
 
 In the following, average delay time for different train lines and different train stations within the same line are respectively plot to analyze the pattern of it. That will give instructions on how to select predictors and models for the delay time...
 
-```{r Average delay time,message = FALSE, warning = FALSE, results='hide',eval=FALSE}
+```{r Average delay time,message = FALSE, warning = FALSE, results='hide'}
 # Average delay time for different train lines
 plot1 <- trainsWithGeometry%>%
   st_drop_geometry()%>%
@@ -448,7 +505,7 @@ plot1 <- trainsWithGeometry%>%
   summarise(averageDelay=mean(delay_minutes))%>%
   ggplot(aes(line,averageDelay))+
   geom_bar(fill=palette1_main,position ="dodge", stat ="summary", fun ="mean")+
-  labs(title = paste("All Lines"," Temporal Delay Distribution",sep = ""))+
+  labs(title = "",x="Lines",y="Average Delay")+
   plotTheme(5,10)+
   theme(legend.position = "none",
         axis.text.x = element_text(angle = 90, hjust = 1),
@@ -458,20 +515,26 @@ plot1 <- trainsWithGeometry%>%
 plot2 <- trainsWithGeometry%>%
   dplyr::select(to,delay_minutes,line)%>%
   na.omit()%>%
-  group_by(to,line)%>%
+  group_by(line)%>%
   summarise(averageDelay=mean(delay_minutes))%>%
+  st_drop_geometry()
+
+byLine2 = lines %>%
+  left_join(plot2, by = 'line')%>%
   ggplot()+
   geom_sf(data=st_union(njCounties),color="black",size=1,fill = "transparent")+
   geom_sf(data=njCounties,color="black",size=0.5,linetype ="dashed",fill = "transparent")+
-  geom_sf(aes(size=averageDelay),color=palette1_main,alpha=0.7)+
-  scale_size_continuous(range = c(1, 3))+
-  labs(title = paste("All Lines"," Spatial Delay Distribution",sep = ""))+
+  geom_sf(aes(color=averageDelay),alpha=0.7,size=.75)+
+  scale_color_gradient(high = brightRed, low = darkBlue, name = '') +
+  labs(title = "",x="Stations",y="")+
   mapTheme(5,10)+
   theme(legend.position = "none")
 
-g <- arrangeGrob(plot1, plot2,ncol=2)
-ggsave(path="./geo",paste("All Lines","geo.png",sep = ""),g)
+grid.arrange(plot1, byLine2,ncol=2,top = paste("All Lines"," Spatial Delay Distribution",sep = ""))
+```
 
+
+```{r Average delay time2,message = FALSE, warning = FALSE, results='hide',eval=FALSE}
 # Average delay time for different train stations within the same line
 linelist <- unique(trainsWithGeometry$line)
 
@@ -485,7 +548,7 @@ plot1 <- trainsWithGeometry%>%
   filter(line == i)%>%
   ggplot(aes(to,averageDelay))+
   geom_bar(fill=palette1_main,position ="dodge", stat ="summary", fun ="mean")+
-  labs(title = paste(i," Temporal Delay Distribution",sep = ""))+
+  labs(title = "",x="Stations",y="Average Delay")+
   plotTheme(5,10)+
   theme(legend.position = "none",
         axis.text.x = element_text(angle = 90, hjust = 1),
@@ -504,18 +567,18 @@ plot2 <- trainsWithGeometry%>%
   geom_sf(data=njStations,size=1,color=palette1_assist,alpha=0.5)+
   geom_sf(aes(size=averageDelay),color=palette1_main,alpha=0.7)+
   scale_size_continuous(range = c(1, 3))+
-  labs(title = paste(i," Spatial Delay Distribution",sep = ""))+
+  labs(title = "",x="Stations",y="")+
   mapTheme(5,10)+
   theme(legend.position = "none")
 
-g <- arrangeGrob(plot1, plot2,ncol=2)
-ggsave(path="./geo",paste(i,"geo.png",sep = ""),g)}
+g <- arrangeGrob(plot1, plot2,ncol=2,top = paste(i," Spatial Delay Distribution",sep = ""))
+ggsave(path="../geo",paste(i,"geo.png",sep = ""),g)}
 
-list.files(path="./geo",pattern = '*.png', full.names = TRUE) %>% 
-        image_read() %>% 
-        image_join() %>% 
-        image_animate(fps=1) %>% 
-        image_write("./geo/allLines.gif")
+# list.files(path="./geo",pattern = '*.png', full.names = TRUE) %>% 
+#         image_read() %>% 
+#         image_join() %>% 
+#         image_animate(fps=1) %>% 
+#         image_write("./geo/allLines.gif")
 ```
 
 ```{r ReadGif for alllines, echo=FALSE,fig.height = 3,out.width = '75%',fig.align = 'center'}
@@ -528,7 +591,7 @@ The previous graphs reveals different average delays across lines and stations, 
 
 In the following, delay time, in the scale of time, for different train lines and different train stations within the same line are respectively plot to analyze the periodic pattern of it. That will give instructions on how to select predictors and models for the delay time...
 
-```{r lineChart in the scale of time, message = FALSE, warning = FALSE, results='hide',eval=FALSE}
+```{r lineChart in the scale of time, message = FALSE, warning = FALSE, results='hide',eval=FALSE,fig.width=9,fig.height=4}
 monday <-trainsWithGeometry%>%
   st_drop_geometry()%>%
   filter(line=="No Jersey Coast")%>%
@@ -558,7 +621,7 @@ plot1 <- trainsWithGeometry%>%
   ggplot(aes(interval_hour,AverageDelayInHour)) + 
   geom_line(color=palette1_main,size=1)+
   geom_vline(data = monday, aes(xintercept = interval_hour),linetype = "dashed",size=1)+
-  labs(title = paste(i,"",sep = ""),x='')+
+  labs(title = paste("Line:",i,sep = ""),x='',y="Average Delay by Hour")+
   plotTheme(10,20)+
   theme(panel.border = element_rect(colour = "black", fill=NA, size=3))
 
@@ -577,18 +640,18 @@ plot2 <- trainsWithGeometry%>%
   ggplot(aes(interval_hour,AverageDelayInHour)) + 
   geom_line(color=palette1_main,size=1)+
   geom_vline(data = monday, aes(xintercept = interval_hour),linetype = "dashed",size=1)+
-  labs(title = paste(j,"",sep = ""))+
+  labs(title = paste("Station:",j,sep = ""),x="Interval Hour",y="Average Delay by Hour")+
   plotTheme(10,20)+
   theme(panel.border = element_rect(colour = "black", fill=NA, size=3))
 
 g <- arrangeGrob(plot1, plot2,ncol=1)
-ggsave(path="./temporal",paste(i,j,"_temporal.png",sep = "_"),g)}}
+ggsave(path="../temporal",paste(i,j,"_temporal.png",sep = "_"),g)}}
 
-list.files(path="./select",pattern = '*.png', full.names = TRUE) %>% 
-        image_read() %>% # reads each path file
-        image_join() %>% # joins image
-        image_animate(fps=1) %>% # animates, can opt for number of loops
-        image_write("./select/allLines.gif") # write to current dir
+# list.files(path="../temporal/select",pattern = '*.png', full.names = TRUE) %>%
+#         image_read() %>% # reads each path file
+#         image_join() %>% # joins image
+#         image_animate(fps=1) %>% # animates, can opt for number of loops
+#         image_write("../temporal/select") # write to current dir
 ```
 
 ```{r ReadGif for alltemporal, echo=FALSE,fig.height = 6,out.width = '75%',fig.align = 'center'}
@@ -719,7 +782,7 @@ trains = read.csv('trains.csv') %>% dplyr::select(-X) %>%
          actual_time = ymd_hms(actual_time))
 ```
 
-```{r lag Variables plot, message=FALSE, warning=FALSE, results='hide'}
+```{r correlationplot, message=FALSE, warning=FALSE,fig.width=10,fig.height=7,out.width='75%',fig.align = 'center'}
 lagVarScatter <- trains%>%
   dplyr::select(delay,lagDelay,stationDelay,lag1StationDelay,lag2StationDelay,lagDelayDayPlus)%>%
   gather(Variable, Value, -delay) %>%
@@ -729,13 +792,14 @@ correlation.lag <-
   group_by(lagVarScatter, Variable) %>%
   summarize(correlation = round(cor(Value, delay,
                                     use = "complete.obs"), 2))
-ggplot(lagVarScatter, aes(Value, delay)) +
-  geom_point(size = 2.5, color = palette1_assist) +
-  geom_text(data = correlation.lag,aes(label = paste("r =", round(correlation, 2))),x=-Inf, y=Inf, vjust = 2, hjust = -.5,size=10) +
-  geom_smooth(method = "lm", se = FALSE, colour = palette1_main,size=2.5) +
+
+ggplot(lagVarScatter%>% sample_n(30000), aes(Value, delay)) +
+  geom_point(size = .1, color = palette1_main) +
+  geom_text(data = correlation.lag,aes(label = paste("r =", round(correlation, 2))),x=-Inf, y=Inf, vjust = 2, hjust = -.5,size=4) +
+  geom_smooth(method = "lm", se = FALSE, colour = palette1_assist,size=1) +
   facet_wrap(~Variable, ncol = 3, scales = "free") +
   labs(
-    x="Lag Trip Count",
+    x="Lag Trip Count",y="Delay",
     title = "Rideshare trip count as a function of time lags") +
   plotTheme()
 ```
@@ -800,7 +864,7 @@ trains = trains %>%
   st_sf()
 ```
 
-```{r Weather Variables plot, message=FALSE, warning=FALSE, results='hide'}
+```{r Weather Variables plot, message=FALSE, warning=FALSE,fig.width=10,fig.height=3.5,out.width='75%',fig.align = 'center'}
 weatherVarScatter <- trains%>%
   st_drop_geometry()%>%
   dplyr::select(delay,temp,precip,windSpeed)%>%
@@ -810,13 +874,13 @@ correlation.lag <-
   group_by(weatherVarScatter, Variable) %>%
   summarize(correlation = round(cor(Value, delay,
                                     use = "complete.obs"), 2))
-ggplot(weatherVarScatter, aes(Value, delay)) +
-  geom_point(size = 2.5, color = palette1_assist) +
-  geom_text(data = correlation.lag,aes(label = paste("r =", round(correlation, 2))),x=-Inf, y=Inf, vjust = 2, hjust = -.5,size=10) +
-  geom_smooth(method = "lm", se = FALSE, colour = palette1_main,size=2.5) +
+ggplot(weatherVarScatter%>% sample_n(30000), aes(Value, delay)) +
+  geom_point(size = .1, color = palette1_main) +
+  geom_text(data = correlation.lag,aes(label = paste("r =", round(correlation, 2))),x=-Inf, y=Inf, vjust = 2, hjust = -.5,size=4) +
+  geom_smooth(method = "lm", se = FALSE, colour = palette1_assist,size=1) +
   facet_wrap(~Variable, ncol = 3, scales = "free") +
   labs(
-    x="",
+    x="",y="Delay",
     title = "Time Delay of Weather") +
   plotTheme()
 ```
@@ -906,9 +970,11 @@ trains4 = trains4 %>%
 
 ```
 
-```{r other features plot, message=FALSE, warning=FALSE, results='hide'}
+```{r readtrain6,include=FALSE, message=FALSE, warning=FALSE,results='hide'}
 trainsFinal = st_read("trains6.GeoJson",crs=crs)
+```
 
+```{r other features plot, message=FALSE, warning=FALSE,fig.width=7,fig.height=3.5,out.width='60%',fig.align='center'}
 correlation.lag <-
   trainsFinal %>%
   dplyr::select(delay,distFirstStation)%>%
@@ -916,21 +982,21 @@ correlation.lag <-
                                     use = "complete.obs"), 2))
 
 grid.arrange(ncol=2,
-ggplot(trainsFinal, aes(distFirstStation, delay)) +
-  geom_point(size = 2.5, color = palette1_assist) +
-  geom_text(data = correlation.lag,aes(label = paste("r =", round(correlation, 2))),x=-Inf, y=Inf, vjust = 2, hjust = -.5,size=10) +
-  geom_smooth(method = "lm", se = FALSE, colour = palette1_main,size=2.5) +
+ggplot(trainsFinal%>% sample_n(30000), aes(distFirstStation, delay)) +
+  geom_point(size = .1, color = palette1_main) +
+  geom_text(data = correlation.lag,aes(label = paste("r =", round(correlation, 2))),x=-Inf, y=Inf, vjust = 2, hjust = -.5,size=4) +
+  geom_smooth(method = "lm", se = FALSE, colour = palette1_assist,size=1) +
   labs(
-    x="distance",
+    x="Distance",y="Delay",
     title = "",
     subtitle = "") +
   plotTheme(),
 trainsFinal %>%
   na.omit()%>%
   dplyr::select(delay,direction) %>%
-  ggplot(aes(direction,delay),fill = "red") +
-  geom_bar(position ="dodge", stat ="summary", fun ="mean") +
-  labs(x="direction", y="Mean",
+  ggplot(aes(direction,delay)) +
+  geom_bar(position ="dodge", stat ="summary", fun ="mean",fill = palette1_main) +
+  labs(x="Direction", y="Mean",
        title ="",
        subtitle = "") +
   plotTheme() + 
@@ -968,7 +1034,103 @@ HERE SHOULD ADD a ten tile kable to see the mean delay of each tile
 
 #### 4.1 Baseline models and their transformations
 
-```{r models,fig.width=8}
+```{r models for BBseline,warning=FALSE, message=FALSE,results='hide'}
+# Baseline
+reg2hBaseline = lm(delay ~ 
+               stop_sequence + to + line + lagDelay + stationDelay +
+               lag1StationDelay + lag2StationDelay + lagDelayDayPlus +
+               hour + dayOfWeek + precip + stationHour10Tile + distFirstStation + direction,
+             data = trainsTrain)
+
+trainsTestBaseLine = trainsTest %>%
+  mutate(predict2hBaseline = predict(reg2hBaseline, newdata = trainsTest),
+         absError2hBaseline = abs(delay - predict2hBaseline))%>%
+  st_drop_geometry()%>%
+  dplyr::select(absError2hBaseline,line,delay,predict2hBaseline)
+```
+
+```{r plot model for BBaseline, message=FALSE, warning=FALSE,fig.height=4,out.width='50%',fig.align='center'}
+MAEForBaseline <- mean(trainsTestBaseLine$absError2hBaseline, na.rm = T)%>%as.data.frame()
+trainsTestBaseLine%>%sample_n(30000)%>%
+ggplot() +
+  geom_point(aes(x = delay, y = predict2hBaseline), size = 0.1,color = palette1_main) +
+  geom_text(data = MAEForBaseline,aes(label = paste("MAE =", round(., 2))),x=-Inf, y=Inf, vjust = 2, hjust = -.5,size=4) +
+  geom_abline(slope = 1, intercept = 0, colour = palette1_assist,size=1)+
+  labs(
+    x="Actual Delay",y="Predicted Delay",
+    title = "",
+    subtitle = "") +
+  plotTheme()
+
+```
+
+```{r MAE by tile for BBseline,message=FALSE, warning=FALSE,results='hide'}
+trainsTestBaseLine = trainsTestBaseLine %>%
+  mutate(tile = case_when(delay < 20 ~ "<20 min",
+                          delay < 40 ~ "20~40 min",
+                          delay < 60 ~ "40~60 min",
+                          delay < 80 ~ "60~80 min",
+                          delay <= 100 ~ "80~100 min",
+                          TRUE ~ ">100 min") %>%
+           factor(, levels = c("<20 min", "20~40 min",
+                               "40~60 min", "60~80 min",
+                               "80~100 min", ">100 min")))
+
+byTile = 
+  trainsTestBaseLine %>%
+  group_by(tile) %>%
+  summarize(meanObs = mean(delay, na.rm = T),
+            meanPredLong = mean(predict2hBaseline, na.rm = T)) %>%
+  gather(variable, value, -tile) %>%
+  mutate(variable = recode(variable,
+                        "meanObs" = "Observed",
+                        "meanPred" = "Predicted"))
+```
+
+
+```{r MAE by tile2 for BBseline,message=FALSE, warning=FALSE,fig.height = 4,out.width = '50%',fig.align = 'center',results='hide'}
+byTile %>%
+  ggplot(aes(tile, value, shape = variable)) +
+  geom_point(size = 2,color=palette1_main) +
+  geom_path(aes(group = tile), color = palette1_assist) +
+  scale_shape_manual(values = c(2, 17), name = "") +
+  labs(x = 'Actual mean delay', y = 'Predicted mean delay') +
+  plotTheme() +
+  theme(legend.position = "bottom")
+  theme(axis.text.x = element_text(angle = 90, size = 20, vjust = 0.5, hjust = 1))
+```
+
+```{r MAE by line3, message=FALSE, warning=FALSE}
+byLine0 = 
+  trainsTestBaseLine %>%
+  group_by(line) %>%
+  summarize(MAE2h = mean(absError2hBaseline, na.rm = T))
+
+
+byLine = lines %>%
+  left_join(byLine0, by = 'line')%>%
+  dplyr::select(line, MAE2h)
+```
+
+```{r MAE by line4,message=FALSE, warning=FALSE,fig.height = 6,out.width = '75%',fig.align = 'center'}
+byLine %>%
+  ggplot() +
+  geom_sf(data = st_union(njCounties),
+          color='black', size=1.5, fill = NA)+
+  geom_sf(data = njCounties,
+          color= 'black', size=0.5,linetype = 'dashed', fill = NA) +
+  geom_sf(aes(color = MAE2h), size = 1.5) +
+  scale_color_gradient(high = brightRed, low = darkBlue, name = '') +
+  mapTheme()+
+  theme(legend.position = "bottom",
+        legend.key.width = unit(2, 'cm'),
+        legend.key.height = unit(1, 'cm'))
+```
+
+
+```{r models,warning=FALSE, message=FALSE,results='hide'}
+trainsTrain <- trainsTrain%>%filter(line!="Atl. City Line")
+trainsTest <- trainsTrain%>%filter(line!="Atl. City Line")
 # Baseline
 reg2hBaseline = lm(delay ~ 
                stop_sequence + to + line + lagDelay + stationDelay +
@@ -1021,16 +1183,6 @@ trainsTest = trainsTest %>%
          predict2hSqSSq = sqPredict2hSSqSq ^ 2,
          absError2hSqSSq = abs(delay - predict2hSqSSq))
 
-trainsTest%>%
-  dplyr::select(delay,starts_with("absError"))%>%
-  st_drop_geometry()%>%
-  gather(Variable, Value, -delay)%>%
-  ggplot() +
-  geom_point(aes(x = delay, y = Value),size=.5,color=palette1_assist) +
-  geom_abline(slope = 1, intercept = 0,color=palette1_main,size=1.5)+
-  facet_wrap(~Variable,scales = "free")+
-  plotTheme()
-
 ErrComparison <- trainsTest%>%
   st_drop_geometry()%>%
   dplyr::select(delay,starts_with("absError"))%>%
@@ -1040,22 +1192,46 @@ ErrComparison <- trainsTest%>%
             SqrtDepIndep=mean(absError2hSqSSq,na.rm=T))
 ```
 
-```{r models table}
-kable(ErrComparison,align = 'c',caption = '<center>Table.A </center>')%>%
+
+```{r models comparison, message=FALSE, warning=FALSE,fig.width=7,fig.height=7,out.width='60%',fig.align = 'center'}
+trainsTest%>%
+  dplyr::select(delay,starts_with("absError"))%>%
+  st_drop_geometry()%>%
+  gather(Variable, Value, -delay)%>%
+  filter(Variable != 'absError2hSeg')%>%
+  mutate(Variable=recode(Variable,
+                         "absError2hBaseline" = 'BaseLine',
+                         "absError2hLog" = "Log DEP Var",
+                         "absError2hSq" = 'Sqrt DEP Var',
+                         "absError2hSqSSq" = 'Sqrt DEP & IND Var')%>%
+           factor(., levels = c('BaseLine','Log DEP Var','Sqrt DEP Var','Sqrt DEP & IND Var')))%>%
+  ggplot() +
+  geom_point(aes(x = delay, y = Value),size=.1,color=palette1_main) +
+  facet_wrap(~Variable,scales = "free",ncol=2)+
+  labs(x="Delay",y="Error",title = "")+
+  plotTheme()
+```
+
+```{r models table,fig.height=1, results='asis'}
+ErrComparison = ErrComparison%>%rename('Log Transform'='LogTrans','Sqrt DEP Var'='SqrtDep','Sqrt DEP & IND Vars'='SqrtDepIndep')
+kable(ErrComparison,align = 'c',caption = '<center>Table.A </center>',table.attr = "style='width:75%;'")%>%
   kable_classic(full_width = T)%>%
-  kable_styling(position = "center",font_size = 12)
+  kable_styling(position = "center")%>%
+  row_spec(0, bold = T,color = palette1_main)
 ```
 
 #### 4.2 Logit models attempt
 
-```{r logit reason plot}
+```{r logit reason plot, message=FALSE, warning=FALSE,fig.height=4,out.width='50%',fig.align='center'}
 ggplot(trainsTrain) +
-  geom_histogram(aes(delay), bins = 50)
+  geom_histogram(aes(delay), bins = 50,fill=palette1_main)+
+  labs(title = '',x='Delay',y='Count') +
+  plotTheme()
 ```
 
 Since the outcome distribution is heavily skewed. A logit transformation should work well here. 
 
-```{r late-or-not logit reg}
+```{r late-or-not logit reg, message=FALSE, warning=FALSE}
 trainsTrain = trainsTrain %>%
   mutate(late = ifelse(delay > 5, 1, 0))
 trainsTest = trainsTest %>%
@@ -1072,13 +1248,14 @@ lateProbs = data.frame(
   probs = predict(lateOrNot, trainsTest, type = 'response'))
 ```
 
-```{r logit results plot}
+```{r logit results plot, message=FALSE, warning=FALSE,fig.height=4,out.width='50%',fig.align='center'}
 ggplot(lateProbs, aes(x = probs, fill = as.factor(outcome))) +
   geom_density(color=FALSE) +
   facet_grid(outcome ~.) +
-  scale_fill_manual(values = palette2) +
+  scale_fill_manual(values = palette2,name = "Delay or Not") +
   xlim(0, 1) +
   plotTheme()+
+  labs(title = '',x='Probability',y='Density')+
   theme(legend.position = "bottom")
 ```
 
@@ -1087,7 +1264,7 @@ Therefore we still focuses on the baseline model. From the plots, we can find ou
 
 #### 4.3 Model for Small Delays
 
-```{r model for small delays}
+```{r model for small delays, message=FALSE, warning=FALSE}
 
 reg2hLnSqSMALLDELAYS = lm(sqDelay ~
                             stop_sequence + to + line + lagDelay + stationDelay +
@@ -1108,13 +1285,19 @@ trainsTest = trainsTest %>%
          absError2hSeg = abs(delay - predict2hSelectionModel))
 ```
 
-```{r plot model for small delays}
-#annotate in the graph
-mean(trainsTest$absError2hSeg, na.rm = T)
+```{r plot model for small delays, message=FALSE, warning=FALSE,fig.height=4,out.width='50%',fig.align='center'}
+correlationForSmall <- mean(trainsTest$absError2hSeg, na.rm = T)%>%as.data.frame()
 
 ggplot(trainsTest) +
-  geom_point(aes(x = delay, y = predict2hSelectionModel), size = 0.001) +
-  geom_abline(slope = 1, intercept = 0)
+  geom_point(aes(x = delay, y = predict2hSelectionModel), size = 0.1,color = palette1_main) +
+  geom_text(data = correlationForSmall,aes(label = paste("MAE =", round(., 2))),x=-Inf, y=Inf, vjust = 2, hjust = -.5,size=4) +
+  geom_abline(slope = 1, intercept = 0, colour = palette1_assist,size=1)+
+  labs(
+    x="Actual Delay",y="Predicted Delay",
+    title = "",
+    subtitle = "") +
+  plotTheme()
+
 ```
 
 ### 5 Generalizability
@@ -1122,8 +1305,9 @@ ggplot(trainsTest) +
 #### 5.1 Cross Validation
 
 Following is the CV for the dataset.
-```{r cross validation by day, fig.height = 9}
+```{r cross validation by day,message=FALSE, warning=FALSE,eval=FALSE}
 trainsL = trainsFinal %>%
+  filter(line!="Atl. City Line")%>%
   mutate(sqDelay = sqrt(delay)) %>%
   left_join(stationHourMean %>% dplyr::select(-meanDelay),
             by = c('to' = 'to',
@@ -1177,20 +1361,24 @@ CVResult = cbind(MAE2hList)%>%
   as.data.frame() %>%
   rename(date = dateList)
 
+st_write(CVResult,"CVResult.csv")
+```
 
-CVResult %>%
-  ggplot(aes(date, MAE2h)) +
-  geom_point(size = 2) +
-  geom_line() +
+```{r PLOTforCV, message=FALSE, warning=FALSE,fig.height=4,out.width='50%',fig.align='center'}
+CVResult <- read.csv("CVResult.csv")
+CVResult <- CVResult%>%mutate(date = ymd(date))%>%na.omit()%>%transform(CVResult, MAE2h = as.numeric(MAE2h))
+
+ggplot(data=CVResult,aes(date, MAE2h)) +
+  geom_point(size = 2,color=palette1_main) +
+  geom_line(data=CVResult,aes(date, MAE2h),color=palette1_assist,line=2) +
   labs(x = 'Day', y = 'MAE') +
   plotTheme()
-
 ```
 
 From the outcome, we can see that Higher error with higher delays on weekends, 30-minute-ahead prediction not much better than 2-hour-ahead.
 
 #### 5.2 By Station & Week
-```{r MAE by station by week, fig.height = 16}
+```{r MAE by station by week, message=FALSE, warning=FALSE,fig.height = 6,out.width='75%',fig.align='center'}
 finalComparison = trainsTest %>%
     mutate(obs= delay,
            predLong = predict2hSelectionModel,
@@ -1210,15 +1398,15 @@ byStationByWeek %>%
           color='black', size=1.5, fill = NA)+
   geom_sf(data = njCounties,
           color= 'black', size=0.5,linetype = 'dashed', fill = NA) +
-  geom_sf(aes(color = MAE2h), size = 2) +
+  geom_sf(aes(color = MAE2h), size = 0.6) +
   scale_color_gradient(high = brightRed, low = darkBlue) +
   facet_wrap(~week) +
-  plotTheme() +
-  theme(legend.position = c(1.3, 0.5))
+  mapTheme() +
+  theme(legend.position = "bottom",panel.spacing = unit(6, 'lines'))
 ```
 
 #### 5.3 By Station & WeekDay
-```{r MAE by station by day of week, eval=FALSE}
+```{r MAE by station by day of week, eval=FALSE, message=FALSE, warning=FALSE,fig.height = 4,out.width='75%',fig.align='center'}
 byStationByDayOfWeek = 
   finalComparison %>%
   group_by(station, dayOfWeek) %>%
@@ -1238,29 +1426,34 @@ byStationByDayOfWeekAnimation =
   mutate(MAE2h = ifelse(MAE2h > 5, 5, MAE2h)) %>%
   ggplot() +
   geom_sf(data = st_union(njCounties),
-          color='black', size=1.5, fill = NA)+
+          color='black', size=4, fill = NA)+
   geom_sf(data = njCounties,
-          color= 'black', size=0.5,linetype = 'dashed', fill = NA) +
-  geom_sf(aes(color = MAE2h), size = 3) +
+          color= 'black', size=2,linetype = 'dashed', fill = NA) +
+  geom_sf(aes(color = MAE2h), size = 6) +
   scale_color_gradient(high = brightRed, low = darkBlue,
                        name = '',
                        breaks = c(0, 1, 2, 3, 4, 5),
                        labels = c("0", "1", "2", "3", "4", "5+")) +
-  facet_wrap(~model) +
   labs(title = '{current_frame}') +
   transition_manual(dayOfWeek) +
-  presentTheme()
+  mapTheme(36,40) +
+  theme(legend.position = "bottom",
+        panel.spacing = unit(12, 'lines'),
+        legend.title = element_text(family = 'font', colour = "black", face = "italic", size = 36),
+        legend.text = element_text(family = 'font', colour = "black", face = "italic", size = 34),
+        legend.key.width = unit(2, 'cm'),
+        legend.key.height = unit(1, 'cm'))
 
 anim_save("byStationByDayOfWeekAnimation.gif", byStationByDayOfWeekAnimation,
-          duration=7, renderer = gifski_renderer(), height = 715, width = 715)
+          duration=10, renderer = gifski_renderer() ,height = 2000, width =2000)
 ```
 
-```{r ReadGif for byStationByDayOfWeek, echo=FALSE,fig.height = 6,out.width = '75%',fig.align = 'center'}
+```{r ReadGif for byStationByDayOfWeek, echo=FALSE,fig.height = 3,out.width = '50%',fig.align = 'center'}
 knitr::include_graphics("byStationByDayOfWeekAnimation.gif")
 ```
 
 #### 5.4 By Station & hour
-```{r MAE by hour, eval=FALSE}
+```{r MAE by hour, eval=FALSE, message=FALSE, warning=FALSE,fig.height = 4,out.width='75%',fig.align='center'}
 byStationByHour = 
   finalComparison %>%
   mutate(hour = as.numeric(hour)) %>%
@@ -1269,77 +1462,38 @@ byStationByHour =
 
 byStationByHourAnimation = 
   byStationByHour %>%
-  mutate(MAE = ifelse(MAE2h > 5, 5, MAE2h)) %>%
+  mutate(MAE2h = ifelse(MAE2h > 5, 5, MAE2h)) %>%
   ggplot() +
   geom_sf(data = st_union(njCounties),
-          color='black', size=1.5, fill = NA)+
+          color='black', size=4, fill = NA)+
   geom_sf(data = njCounties,
-          color= 'black', size=0.5,linetype = 'dashed', fill = NA) +
-  geom_sf(aes(color = MAE2h), size = 3) +
+          color= 'black', size=2,linetype = 'dashed', fill = NA) +
+  geom_sf(aes(color = MAE2h), size = 6) +
   scale_color_gradient(high = brightRed, low = darkBlue,
                        name = '',
                        breaks = c(0, 1, 2, 3, 4, 5),
                        labels = c("0", "1", "2", "3", "4", "5+")) +
-  facet_wrap(~model) +
   labs(title = '{current_frame}:00 ~ {current_frame}:59') +
   transition_manual(hour) +
-  presentTheme()
+  mapTheme(36,40) +
+  theme(legend.position = "bottom",
+        panel.spacing = unit(12, 'lines'),
+        legend.title = element_text(family = 'font', colour = "black", face = "italic", size = 36),
+        legend.text = element_text(family = 'font', colour = "black", face = "italic", size = 34),
+        legend.key.width = unit(2, 'cm'),
+        legend.key.height = unit(1, 'cm'))
 
 anim_save("byStationByHourAnimation.gif", byStationByHourAnimation,
-          duration=12, renderer = gifski_renderer(), height = 715, width = 715)
+          duration=10, renderer = gifski_renderer(), height = 2000, width = 2000)
 ```
 
-```{r ReadGif for byStationByHour, echo=FALSE,fig.height = 6,out.width = '75%',fig.align = 'center'}
+```{r ReadGif for byStationByHour, echo=FALSE,fig.height = 3,out.width = '50%',fig.align = 'center'}
 knitr::include_graphics("byStationByHourAnimation.gif")
 ```
 
 #### 5.5 By line
 
-```{r MAE by line, fig.height = 9}
-
-lines = rbind(
-  st_read('https://services6.arcgis.com/M0t0HPE53pFK525U/arcgis/rest/services/NJTransit_Rail_Linea/FeatureServer/0/query?outFields=*&where=1%3D1&f=geojson') %>%
-    st_transform(crs) %>%
-    mutate(line = 'Northeast Corrdr') %>%
-    dplyr::select(line),
-  st_read('https://services6.arcgis.com/M0t0HPE53pFK525U/arcgis/rest/services/NJTransit_Rail_Linea/FeatureServer/6/query?outFields=*&where=1%3D1&f=geojson') %>%
-    st_transform(crs) %>%
-    mutate(line = 'Atl. City Line') %>%
-    dplyr::select(line),
-  st_read('https://services6.arcgis.com/M0t0HPE53pFK525U/arcgis/rest/services/NJTransit_Rail_Linea/FeatureServer/7/query?outFields=*&where=1%3D1&f=geojson') %>%
-    st_transform(crs) %>%
-    mutate(line = 'Bergen Co. Line ') %>%
-    dplyr::select(line),
-  st_read('https://services6.arcgis.com/M0t0HPE53pFK525U/arcgis/rest/services/NJTransit_Rail_Linea/FeatureServer/9/query?outFields=*&where=1%3D1&f=geojson') %>%
-    st_transform(crs) %>%
-    mutate(line = 'Gladstone Branch') %>%
-    dplyr::select(line),
-  st_read('https://services6.arcgis.com/M0t0HPE53pFK525U/arcgis/rest/services/NJTransit_Rail_Linea/FeatureServer/4/query?outFields=*&where=1%3D1&f=geojson') %>%
-    st_transform(crs) %>%
-    mutate(line = 'Main Line') %>%
-    dplyr::select(line),
-  st_read('https://services6.arcgis.com/M0t0HPE53pFK525U/arcgis/rest/services/NJTransit_Rail_Linea/FeatureServer/8/query?outFields=*&where=1%3D1&f=geojson') %>%
-    st_transform(crs) %>%
-    mutate(line = 'Montclair-Boonton') %>%
-    dplyr::select(line),
-  st_read('https://services6.arcgis.com/M0t0HPE53pFK525U/arcgis/rest/services/NJTransit_Rail_Linea/FeatureServer/3/query?outFields=*&where=1%3D1&f=geojson') %>%
-    st_transform(crs) %>%
-    mutate(line = 'Morristown Line') %>%
-    dplyr::select(line),
-  st_read('https://services6.arcgis.com/M0t0HPE53pFK525U/arcgis/rest/services/NJTransit_Rail_Linea/FeatureServer/10/query?outFields=*&where=1%3D1&f=geojson') %>%
-    st_transform(crs) %>%
-    mutate(line = 'No Jersey Coast') %>%
-    dplyr::select(line),
-  st_read('https://services6.arcgis.com/M0t0HPE53pFK525U/arcgis/rest/services/NJTransit_Rail_Linea/FeatureServer/12/query?outFields=*&where=1%3D1&f=geojson') %>%
-    st_transform(crs) %>%
-    mutate(line = 'Pascack Valley') %>%
-    dplyr::select(line),
-  st_read('https://services6.arcgis.com/M0t0HPE53pFK525U/arcgis/rest/services/NJTransit_Rail_Linea/FeatureServer/11/query?outFields=*&where=1%3D1&f=geojson') %>%
-    st_transform(crs) %>%
-    mutate(line = 'Raritan Valley') %>%
-    dplyr::select(line)
-)
-
+```{r MAE by line, message=FALSE, warning=FALSE}
 byLine0 = 
   finalComparison %>%
   st_drop_geometry %>%
@@ -1350,21 +1504,27 @@ byLine0 =
 byLine = lines %>%
   left_join(byLine0, by = 'line')%>%
   dplyr::select(line, MAE2h)
+```
 
+
+```{r MAE by line2,message=FALSE, warning=FALSE,fig.height = 6,out.width = '75%',fig.align = 'center'}
 byLine %>%
   ggplot() +
   geom_sf(data = st_union(njCounties),
           color='black', size=1.5, fill = NA)+
   geom_sf(data = njCounties,
           color= 'black', size=0.5,linetype = 'dashed', fill = NA) +
-  geom_sf(aes(color = MAE2h), size = 2) +
+  geom_sf(aes(color = MAE2h), size = 1.5) +
   scale_color_gradient(high = brightRed, low = darkBlue, name = '') +
-  plotTheme()
+  mapTheme()+
+  theme(legend.position = "bottom",
+        legend.key.width = unit(2, 'cm'),
+        legend.key.height = unit(1, 'cm'))
 ```
 
 #### 5.6 By tile
 
-```{r MAE by tile, fig.height = 9, fig.width = 12}
+```{r MAE by tile, ,message=FALSE, warning=FALSE}
 finalComparison = finalComparison %>%
   mutate(tile = case_when(obs < 20 ~ "<20 min",
                           obs < 40 ~ "20~40 min",
@@ -1386,14 +1546,18 @@ byTile =
   mutate(variable = recode(variable,
                         "meanObs" = "Observed",
                         "meanPred" = "Predicted"))
+```
 
+
+```{r MAE by tile2,message=FALSE, warning=FALSE,fig.height = 4,out.width = '50%',fig.align = 'center',results='hide'}
 byTile %>%
   ggplot(aes(tile, value, shape = variable)) +
-  geom_point(size = 4) +
-  geom_path(aes(group = tile), color = 'black') +
+  geom_point(size = 2,color=palette1_main) +
+  geom_path(aes(group = tile), color = palette1_assist) +
   scale_shape_manual(values = c(2, 17), name = "") +
   labs(x = 'Actual mean delay', y = 'Predicted mean delay') +
   plotTheme() +
+  theme(legend.position = "bottom")
   theme(axis.text.x = element_text(angle = 90, size = 20, vjust = 0.5, hjust = 1))
 ```
 
@@ -1401,5 +1565,29 @@ byTile %>%
 
 
 ```{r ReadGif for NJ transit, echo=FALSE,fig.height = 6,out.width = '75%',fig.align = 'center'}
-knitr::include_graphics("NJ-transit.gif")
+knitr::include_graphics("./wireframe/01.jpg")
+```
+
+```{r ReadGif for NJ transit2, echo=FALSE,fig.height = 6,out.width = '75%',fig.align = 'center'}
+knitr::include_graphics("./wireframe/02.jpg")
+```
+
+```{r ReadGif for NJ transit3, echo=FALSE,fig.height = 6,out.width = '75%',fig.align = 'center'}
+knitr::include_graphics("./wireframe/03.jpg")
+```
+
+```{r ReadGif for NJ transit4, echo=FALSE,fig.height = 6,out.width = '75%',fig.align = 'center'}
+knitr::include_graphics("./wireframe/04.jpg")
+```
+
+```{r ReadGif for NJ transit5, echo=FALSE,fig.height = 6,out.width = '75%',fig.align = 'center'}
+knitr::include_graphics("./wireframe/05.jpg")
+```
+
+```{r ReadGif for NJ transit6, echo=FALSE,fig.height = 6,out.width = '75%',fig.align = 'center'}
+knitr::include_graphics("./wireframe/06.jpg")
+```
+
+```{r ReadGif for NJ transit7, echo=FALSE,fig.height = 6,out.width = '75%',fig.align = 'center'}
+knitr::include_graphics("./wireframe/07.jpg")
 ```
