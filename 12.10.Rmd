@@ -1583,3 +1583,5 @@ knitr::include_graphics("NJ-transitPart4ForPPT2.gif")
 ```
 
 In Figure 24., once the operator identifies the delayed trains, measures can be taken to mitigate the situation, e.g., by adjusting train speeds or directing more staff to accelerate passenger flows at the delayed stations. The operator can first model the potential effects of these measures before making the decision. Our algorithm could also be used for **retrospective evaluation**, i.e. to reveal the primary factors leading to systematic train delays, based on which to improve the entire transit network and to  provide a better service for passengers. 
+
+**For Video Presentation, please click [here](http://www.google.com)**
