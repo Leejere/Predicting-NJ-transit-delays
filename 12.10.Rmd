@@ -1129,7 +1129,7 @@ Table 4. summarizes the MAE (mean absolute error) corresponding to these four mo
 
 #### 3.3 Separate model for Small Delays
 
-Figure 10. shows that although the model performs well with long delays, it tends to under-predict mid-range (10- to 40-minute delays). To solve this problem, we first use a separate model for short delays: that is, once a train is predicted to delay for less than 20 minutes, we shift to another model that are trained specifically on shorter delays. The prediction power of this final linear model is shown in Figure 11. However, it still falls short with the mid-range delays. This defect is remediated by a supplementary Logistic model as demonstrated in the next section.
+Figure 12. shows that although the model performs well with long delays, it tends to under-predict mid-range (10- to 40-minute delays). To solve this problem, we first use a separate model for short delays: that is, once a train is predicted to delay for less than 20 minutes, we shift to another model that are trained specifically on shorter delays. The prediction power of this final linear model is shown in Figure 13. However, it still falls short with the mid-range delays. This defect is remediated by a supplementary Logistic model as demonstrated in the next section.
 
 ```{r model for small delays, message=FALSE, warning=FALSE}
 
