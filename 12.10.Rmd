@@ -383,25 +383,27 @@ TrainIDforDifDay = trains%>%
 TrainIDforDifDay = TrainIDforDifDay[1:5,]
 ```
 
-```{r table1 for illustrate trainID and express line, echo=FALSE,fig.height=1, results='asis',fig.cap="Table 1. trainID for a whole trip"}
-kable(trainIDforWholeTrip,align = 'c')%>%
+```{r table1 for illustrate trainID and express line, echo=FALSE,fig.height=1, results='asis'}
+kable(trainIDforWholeTrip,align = 'c',caption = '<center>Table 1. trainID for a whole trip <center/>')%>%
   kable_classic(full_width = T)%>%
   kable_styling(position = "center")%>%
   column_spec(2, bold = T,color = palette1_assist)%>%
   column_spec(3, bold = T,color = palette1_main)
 ```
-
-```{r table2 for illustrate trainID and express line, echo=FALSE,fig.height=1, results='asis',fig.cap="Table 2. Different TrainIDs within the same day & Express or normal lines"}
-kable(difTrainIDs,align = 'c')%>%
+<br>
+<br>
+```{r table2 for illustrate trainID and express line, echo=FALSE,fig.height=1, results='asis'}
+kable(difTrainIDs,align = 'c',caption = '<center>Table 2. Different TrainIDs within the same day & Express or normal lines<center/>')%>%
   kable_classic(full_width = T)%>%
   kable_styling(position = "center")%>%
   column_spec(2, bold = T,color = palette1_assist)%>%
   row_spec(2, bold = T,color = palette1_main)%>%
   row_spec(3, bold = T,color = palette1_main)
 ```
-
-```{r table3 for illustrate trainID and express line, echo=FALSE,fig.height=1, results='asis',fig.cap="Table 3. TrainID is allocated for the specific time slot everyday"}
-kable(TrainIDforDifDay,align = 'c')%>%
+<br>
+<br>
+```{r table3 for illustrate trainID and express line, echo=FALSE,fig.height=1, results='asis'}
+kable(TrainIDforDifDay,align = 'c',caption = '<center>Table 3. TrainID is allocated for the specific time slot everyday<center/>')%>%
   kable_classic(full_width = T)%>%
   kable_styling(position = "center")%>%
   column_spec(2, bold = T,color = palette1_main)%>%
@@ -1117,9 +1119,9 @@ trainsTest%>%
   plotTheme()
 ```
 
-```{r models table,fig.height=1, results='asis',fig.cap="Table 4. MAEs for the four linear models"}
+```{r models table,fig.height=1, results='asis'}
 ErrComparison = ErrComparison%>%rename('Log Transform'='LogTrans','Sqrt DEP Var'='SqrtDep','Sqrt DEP & IND Vars'='SqrtDepIndep')
-kable(ErrComparison,align = 'c')%>%
+kable(ErrComparison,align = 'c',caption = '<center>Table 4. MAEs for the four linear models<center/>')%>%
   kable_classic(full_width = T)%>%
   kable_styling(position = "center")%>%
   row_spec(0, bold = T,color = palette1_main)
@@ -1168,7 +1170,7 @@ ggplot(trainsTest) +
 
 #### 3.4 Supplemental logit: better for mid-range delays
 
-It is possible that a logit model, which classifies all delays into either "delay" or "non-delay", might help. Here, we consider delays that are longer than five minutes as "delayed", and those shorter than five minutes are "not delayed". By training a logit model on the training set and testing it on the test set, we evaluate the logit model through Figure 15., which shows the distributions of predicted possibilities of delay by observed outcome. 
+It is possible that a logit model, which classifies all delays into either "delay" or "non-delay", might help. Here, we consider delays that are longer than five minutes as "delayed", and those shorter than five minutes are "not delayed". By training a logit model on the training set and testing it on the test set, we evaluate the logit model through Figure 14., which shows the distributions of predicted possibilities of delay by observed outcome. 
 
 ```{r late-or-not logit reg, message=FALSE, warning=FALSE}
 trainsTrain2 = trainsTrain %>%
@@ -1198,7 +1200,7 @@ ggplot(lateProbs, aes(x = probs, fill = as.factor(outcome))) +
   theme(legend.position = "bottom")
 ```
 
-Although these two distributions are not as distinctive as expected, the ROC curve as shown in Figure 16. suggests that if we set the threshold at around 0.11, the sensitivity and specificity of the model is still acceptable, as shown in Table 5. This means that the model is able to identify around 70% of all delays longer than 10 minutes, and that around 70% of the identified over-10-minute delays are in fact longer than 10 minutes.
+Although these two distributions are not as distinctive as expected, the ROC curve as shown in Figure 15. suggests that if we set the threshold at around 0.11, the sensitivity and specificity of the model is still acceptable, as shown in Table 5. This means that the model is able to identify around 70% of all delays longer than 10 minutes, and that around 70% of the identified over-10-minute delays are in fact longer than 10 minutes.
 
 ```{r roc, message=FALSE, warning=FALSE,fig.height=4,out.width='50%',fig.align='center', fig.cap = 'Figure 15. ROC Curve - delayed or not delayed'}
 ggplot(lateProbs, aes(d = as.numeric(lateProbs$outcome), m = probs)) +
@@ -1209,7 +1211,7 @@ ggplot(lateProbs, aes(d = as.numeric(lateProbs$outcome), m = probs)) +
   plotTheme()
 ```
 
-```{r logit eval, message=FALSE, warning=FALSE,fig.height=4,out.width='50%',fig.align='center',fig.cap="Table 5. Model results of the logistic model"}
+```{r logit eval, message=FALSE, warning=FALSE,fig.height=4,out.width='50%',fig.align='center'}
 lateProbs2 = lateProbs %>%
   mutate(predOutcome = as.factor(ifelse(lateProbs$probs > 0.11, 1, 0)))
 
@@ -1221,7 +1223,7 @@ matrix3 <- cbind(
   AUC = pROC::auc(lateProbs2$outcome, lateProbs2$probs)
 ) %>% as.data.frame() 
 rownames(matrix3) <- c()
-kable(matrix3,align = 'c') %>% 
+kable(matrix3,align = 'c',caption = '<center>Table 5. Model results of the logistic model<center/>') %>% 
   kable_classic(full_width = T)%>%
   kable_styling(position = "center")%>%
   row_spec(0, bold = T,color = palette1_main)
@@ -1565,16 +1567,16 @@ byTile %>%
 
 ### 5 An app for New Jersey Transit
 
-Now, we demonstrate how an app could be created based on the above models, that will be of assistance to the New Jersey Transit, who will use the prediction to better dispatch resources to minimize the delay. In the above chapters, we have demonstrated how models are build to predict delays 2 hours ahead of schedule by training on four weeks in September and October, 2019. In practice, different models could be build to make predictions by different lengths ahead of schedule, although there exists a trade-off between how long ahead of time and how accurate the models can be. The training set could be continuously updated, as well as selective by month or season.
+Now, we demonstrate how an app could be created based on the above models, that will be of assistance to the New Jersey Transit, who will use the prediction to better dispatch resources to minimize the delay. In the above chapters, we have demonstrated how models are build to predict delays 2 hours ahead of schedule by training on four weeks in September and October, 2019. In practice, different models could be built to make predictions by different lengths ahead of schedule, although there exists a trade-off between how long ahead of time and how accurate the models can be. The training set could be continuously updated, as well as selective by month or season.
 
 ```{r ReadGif for NJ transit, echo=FALSE,fig.height = 6,out.width = '75%',fig.align = 'center',fig.cap="Figure 23. Prediction Function in the Wireframe for NJ Transit"}
 knitr::include_graphics("NJ-transitPart4ForPPT.gif")
 ```
 
-In the Figure 23. a New Jersey Transit operator could easily view whether a train is predicted to delay and how long it is predicted to day  by filtering prediction model, time of prediction, scheduled time, and so on. They can also view real-time average delays by line, by station, etc.
+In Figure 23. a New Jersey Transit operator could easily view whether a train is predicted to delay and how long it is predicted to delay by filtering prediction model, time of prediction, scheduled time, and so on. They can also view real-time average delays by line, by station, etc.
 
 ```{r ReadGif for NJ transit2, echo=FALSE,fig.height = 6,out.width = '75%',fig.align = 'center',fig.cap="Figure 24. Prediction Function in the Wireframe for NJ Transit"}
 knitr::include_graphics("NJ-transitPart4ForPPT2.gif")
 ```
 
-In the Figure 24. once the operator identifies the delayed trains, measures can be taken to mitigate the situation, e.g., by adjusting train speeds or directing more staff to accelerate passenger flows at the delayed stations. The operator can first model the potential effects of these measures before making the decision. Also for the systematic delays, NJ Transit operator can see the proportion of different causes for delays, using this way to provide a better serive for custumers. 
+In Figure 24. once the operator identifies the delayed trains, measures can be taken to mitigate the situation, e.g., by adjusting train speeds or directing more staff to accelerate passenger flows at the delayed stations. The operator can first model the potential effects of these measures before making the decision. Also for the systematic delays, NJ Transit operator can see the proportion of different causes for delays, using this way to provide a better serive for custumers. 
