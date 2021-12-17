@@ -278,19 +278,15 @@ ggmap(base_map) +
 But this system faces serious operation issues: according to Federal Transit Administration data, New Jersey Transit broke down more than more than any other system in the nation in 2019, plagued by constant delays and cancellations.
 ^[*NJ Transit trains are the nation’s worst again, feds say*, News by NJ.com: https://www.nj.com/traffic/2019/12/nj-transit-trains-are-the-nations-worst-again-feds-say.html]
 
-<br>
-
 ```{r ReadbackgroundPic, echo=FALSE,fig.height = 2,out.width = '60%',fig.align = 'center',fig.cap='Figure 2. A NJ Transit train disabled by a fire at the Princeton Junction'}
 knitr::include_graphics("delayBackground.jfif")
 ```
-<br>
+
 A main reason for train delays is high passenger flows that exceed station capacity in particular space-times. But the current train dispatch system cannot foresee train delays long ahead of schedule and therefore cannot take action accordingly. With our prediction algorithm, once the transit company predicts, 2 hours ahead of schedule, that a long delay will occur, they can take measures in real time to mitigate the situation, e.g., adjusting train speeds, or directing more staff to assist passenger movement in the station. Furthermore, our algorithm can reveal the primary factors leading to train delays, based on which to improve the entire transit network.
 
-<br>
 ```{r ReadbackgroundPic2, echo=FALSE,fig.height = 1,out.width = '75%',fig.align = 'center', fig.cap = 'Figure 3. Use case of our predicting algorithm'}
 knitr::include_graphics("USECASECONCEPT.png")
 ```
-<br>
 
 ### 2 Exploring and wrangling data
 
@@ -384,7 +380,7 @@ TrainIDforDifDay = trains%>%
   dplyr::select(scheduled_time,train_id,from,to,line)
 TrainIDforDifDay = TrainIDforDifDay[1:5,]
 ```
-<br>
+
 ```{r table1 for illustrate trainID and express line, echo=FALSE,fig.height=1, results='asis',fig.cap="Table 1. trainID for a whole trip"}
 kable(trainIDforWholeTrip,align = 'c')%>%
   kable_classic(full_width = T)%>%
@@ -392,8 +388,7 @@ kable(trainIDforWholeTrip,align = 'c')%>%
   column_spec(2, bold = T,color = palette1_assist)%>%
   column_spec(3, bold = T,color = palette1_main)
 ```
-<br>
-<br>
+
 ```{r table2 for illustrate trainID and express line, echo=FALSE,fig.height=1, results='asis',fig.cap="Table 2. Different TrainIDs within the same day & Express or normal lines"}
 kable(difTrainIDs,align = 'c')%>%
   kable_classic(full_width = T)%>%
@@ -402,8 +397,7 @@ kable(difTrainIDs,align = 'c')%>%
   row_spec(2, bold = T,color = palette1_main)%>%
   row_spec(3, bold = T,color = palette1_main)
 ```
-<br>
-<br>
+
 ```{r table3 for illustrate trainID and express line, echo=FALSE,fig.height=1, results='asis',fig.cap="Table 3. TrainID is allocated for the specific time slot everyday"}
 kable(TrainIDforDifDay,align = 'c')%>%
   kable_classic(full_width = T)%>%
@@ -411,8 +405,6 @@ kable(TrainIDforDifDay,align = 'c')%>%
   column_spec(2, bold = T,color = palette1_main)%>%
   column_spec(1,bold = T,color = palette1_assist)
 ```
-<br>
-<br>
 
 #### 2.2 Delays by line and station
 
@@ -457,8 +449,7 @@ byLine2 = lines %>%
 
 grid.arrange(plot1, byLine2,ncol=2,top = "")
 ```
-<br>
-<br>
+
 ```{r Average delay time2,message = FALSE, warning = FALSE, results='hide',eval=FALSE}
 # Average delay time for different train stations within the same line
 linelist <- unique(trainsWithGeometry$line)
@@ -509,8 +500,6 @@ ggsave(path="../geo",paste(i,"geo.png",sep = ""),g)}
 ```{r ReadGif for alllines, echo=FALSE,fig.height = 3,out.width = '75%',fig.align = 'center',fig.cap="Figure 5. Average delay each station of all lines"}
 knitr::include_graphics("allLines.gif")
 ```
-<br>
-<br>
 
 #### 2.3 Serial autocorrelation and time lag features
 
@@ -1376,8 +1365,6 @@ ggplot(data=CVResultLogit,aes(date, Value)) +
   ylim(0,1)+
   plotTheme()
 ```
-<br>
-<br>
 
 #### 4.2 Generalizability by station and time
 
