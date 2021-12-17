@@ -1579,4 +1579,4 @@ In Figure 23. a New Jersey Transit operator could easily view whether a train is
 knitr::include_graphics("NJ-transitPart4ForPPT2.gif")
 ```
 
-In Figure 24. once the operator identifies the delayed trains, measures can be taken to mitigate the situation, e.g., by adjusting train speeds or directing more staff to accelerate passenger flows at the delayed stations. The operator can first model the potential effects of these measures before making the decision. Also for the systematic delays, NJ Transit operator can see the proportion of different causes for delays, using this way to provide a better serive for custumers. 
+In Figure 24., once the operator identifies the delayed trains, measures can be taken to mitigate the situation, e.g., by adjusting train speeds or directing more staff to accelerate passenger flows at the delayed stations. The operator can first model the potential effects of these measures before making the decision. Also for the systematic delays, NJ Transit operator can see the proportion of different causes for delays, using this way to provide a better service for customers. 
