@@ -1206,13 +1206,13 @@ lateProbs = data.frame(
   probs = predict(lateOrNot, trainsTest2, type = 'response'))
 ```
 
-```{r logit results plot, message=FALSE, fig.cap = 'Figure 15. Distribution of predicted delay possibilities by observed outcome', warning=FALSE,fig.height=4,out.width='50%',fig.align='center'}
+```{r logit results plot, message=FALSE, fig.cap = 'Figure 15. Distribution of predicted delay possibilities by observed outcome', warning=FALSE,fig.height=6, fig.width = 8,fig.align='center'}
 ggplot(lateProbs, aes(x = probs, fill = as.factor(outcome))) +
   geom_density(color=FALSE) +
   facet_grid(outcome ~.) +
   scale_fill_manual(values = palette2,name = "Delayed or not delayed") +
   xlim(0, 1) + 
-  plotTheme()+
+  presentTheme()+
   labs(title = '',x='Probability',y='Density')+
   theme(legend.position = "bottom")
 ```
@@ -1399,7 +1399,7 @@ ggplot(data=CVResultLogit,aes(date, Value)) +
 Figure 18. Shows the MAE of the linear model for each station during the two weeks in the test set. We also calculate the MAE of each station by day of week (Figure 19.) and hour of day (Figure 20.) The results suggest that the generalizability of the linear model is generally acceptable, but that it generalizes better for weekdays and during daytime.
 
 
-```{r MAE by station by week, message=FALSE, warning=FALSE,fig.height = 5,out.width='75%',fig.align='center'}
+```{r MAE by station by week, message=FALSE, warning=FALSE,fig.height = 12,out.width='75%',fig.align='center'}
 finalComparison = trainsTest %>%
     mutate(obs= delay,
            predLong = predict2hSelectionModel,
@@ -1416,13 +1416,13 @@ byStationByWeek =
 byStationByWeek %>%
   ggplot() +
   geom_sf(data = st_union(njCounties),
-          color='black', size=1, fill = NA)+
+          color='black', size=2, fill = NA)+
   geom_sf(data = njCounties,
-          color= 'black', size=0.5,linetype = 'dashed', fill = NA) +
-  geom_sf(aes(color = MAE2h), size = 0.8) +
+          color= 'black', size=1,linetype = 'dashed', fill = NA) +
+  geom_sf(aes(color = MAE2h), size = 2) +
   scale_color_gradient(high = brightRed, low = darkBlue) +
   facet_wrap(~week) +
-  mapTheme() +
+  presentTheme() 
   theme(legend.position = "bottom",panel.spacing = unit(6, 'lines'),
           legend.key.width = unit(.5, 'cm'),
         legend.key.height  = unit(.2, 'cm'))
@@ -1430,7 +1430,7 @@ byStationByWeek %>%
 <br>
 <br>
 
-```{r MAE by station by day of week, eval=FALSE, message=FALSE, warning=FALSE,fig.height = 4,out.width='75%',fig.align='center'}
+```{r MAE by station by day of week, eval=FALSE, message=FALSE, warning=FALSE,fig.height = 12,out.width='75%',fig.align='center'}
 byStationByDayOfWeek = 
   finalComparison %>%
   group_by(station, dayOfWeek) %>%
@@ -1460,7 +1460,7 @@ byStationByDayOfWeekAnimation =
                        labels = c("0", "1", "2", "3", "4", "5+")) +
   labs(title = '{current_frame}') +
   transition_manual(dayOfWeek) +
-  mapTheme(36,40) +
+  presentTheme()
   theme(legend.position = "bottom",
         panel.spacing = unit(12, 'lines'),
         legend.title = element_text(family = 'font', colour = "black", face = "italic", size = 36),
@@ -1468,8 +1468,8 @@ byStationByDayOfWeekAnimation =
         legend.key.width = unit(2, 'cm'),
         legend.key.height = unit(1, 'cm'))
 
-anim_save("byStationByDayOfWeekAnimation.gif", byStationByDayOfWeekAnimation,
-          duration=10, renderer = gifski_renderer() ,height = 2000, width =2000)
+anim_save("byStationByDayOfWeekAnimationPresent.gif", byStationByDayOfWeekAnimation,
+          duration=10, renderer = gifski_renderer() ,height = 1500, width =1000)
 ```
 
 ```{r ReadGif for byStationByDayOfWeek, echo=FALSE,fig.height = 3,out.width = '50%',fig.align = 'center'}
@@ -1478,7 +1478,7 @@ knitr::include_graphics("byStationByDayOfWeekAnimation.gif")
 <br>
 <br>
 
-```{r MAE by hour, eval=FALSE, message=FALSE, warning=FALSE,fig.height = 4,out.width='75%',fig.align='center'}
+```{r MAE by hour, eval=FALSE, message=FALSE, warning=FALSE,fig.height = 12,out.width='75%',fig.align='center'}
 byStationByHour = 
   finalComparison %>%
   mutate(hour = as.numeric(hour)) %>%
@@ -1500,7 +1500,7 @@ byStationByHourAnimation =
                        labels = c("0", "1", "2", "3", "4", "5+")) +
   labs(title = '{current_frame}:00 ~ {current_frame}:59') +
   transition_manual(hour) +
-  mapTheme(36,40) +
+  presentTheme()
   theme(legend.position = "bottom",
         panel.spacing = unit(12, 'lines'),
         legend.title = element_text(family = 'font', colour = "black", face = "italic", size = 36),
@@ -1508,8 +1508,8 @@ byStationByHourAnimation =
         legend.key.width = unit(2, 'cm'),
         legend.key.height = unit(1, 'cm'))
 
-anim_save("byStationByHourAnimation.gif", byStationByHourAnimation,
-          duration=10, renderer = gifski_renderer(), height = 2000, width = 2000)
+anim_save("byStationByHourAnimationPresent.gif", byStationByHourAnimation,
+          duration=10, renderer = gifski_renderer(), height = 1500, width = 1000)
 ```
 
 ```{r ReadGif for byStationByHour, echo=FALSE,fig.height = 3,out.width = '50%',fig.align = 'center'}
@@ -1534,16 +1534,16 @@ byLine = lines %>%
 ```
 
 
-```{r MAE by line2,message=FALSE, warning=FALSE,fig.height = 5,out.width = '75%',fig.align = 'center'}
+```{r MAE by line2,message=FALSE, warning=FALSE,fig.height = 12,out.width = '75%',fig.align = 'center'}
 byLine %>%
   ggplot() +
   geom_sf(data = st_union(njCounties),
-          color='black', size=1, fill = NA)+
+          color='black', size=2, fill = NA)+
   geom_sf(data = njCounties,
-          color= 'black', size=0.5,linetype = 'dashed', fill = NA) +
-  geom_sf(aes(color = MAE2h), size = 0.8) +
+          color= 'black', size=1,linetype = 'dashed', fill = NA) +
+  geom_sf(aes(color = MAE2h), size = 2) +
   scale_color_gradient(high = brightRed, low = darkBlue, name = '') +
-  mapTheme()+
+  presentTheme()
   theme(legend.position = "bottom",
           legend.key.width = unit(.5, 'cm'),
         legend.key.height  = unit(.2, 'cm'))
