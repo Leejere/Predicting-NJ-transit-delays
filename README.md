@@ -1,3 +1,4 @@
-Markdown file: Delayed Early_Predicting NJ Train Delays.Rmd
+This project aims to predict train delays for New Jersey Transit.
+A main reason for train delays is high passenger flows that exceed station capacity in particular space-times. But the current train dispatch system cannot foresee train delays long ahead of schedule and therefore cannot take action accordingly. With our prediction algorithm, once the transit company predicts, for example, 2 hours ahead of schedule, that a delay will occur, they can take measures real-time to mitigate the delay situation, e.g., adjusting train speeds, or directing more staff to assist passenger movement in the station. When used for retrospective evaluation, our algorithm can reveal the primary factors leading to train delays, based on which to improve the entire transit network.
 
 HTML file: Delayed Early_Predicting NJ Train Delays.html
